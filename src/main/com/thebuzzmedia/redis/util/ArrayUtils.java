@@ -1,11 +1,17 @@
 package com.thebuzzmedia.redis.util;
 
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+
 import com.thebuzzmedia.redis.Constants;
 
 public class ArrayUtils {
-	public static int indexOfCRLF(byte[] data) throws IllegalArgumentException {
-		return indexOfCRLF(0, (data == null ? 0 : data.length), data);
-	}
+	public static final int ENCODE_BUFFER_SIZE = Integer.getInteger(
+			"redis.util.encodeBufferSize", 4096);
+	public static final int DECODE_BUFFER_SIZE = Integer.getInteger(
+			"redis.util.decodeBufferSize", 4096);
 
 	public static int indexOfCRLF(int index, int length, byte[] data)
 			throws IllegalArgumentException {
@@ -31,6 +37,76 @@ public class ArrayUtils {
 					&& (index + i + 1) < data.length
 					&& data[index + i + 1] == Constants.LF)
 				result = index + i;
+		}
+
+		return result;
+	}
+
+	public static byte[] encode(char[] chars) {
+		byte[] result = null;
+
+		if (chars != null)
+			result = encode(CharBuffer.wrap(chars));
+
+		return result;
+	}
+
+	public static byte[] encode(CharSequence chars) {
+		byte[] result = null;
+
+		if (chars != null)
+			result = encode(CharBuffer.wrap(chars));
+
+		return result;
+	}
+
+	public static char[] decode(byte[] bytes) {
+		char[] result = null;
+
+		if (bytes == null) {
+			ByteBuffer in = ByteBuffer.wrap(bytes);
+			CharBuffer buffer = CharBuffer.allocate(DECODE_BUFFER_SIZE);
+			StrictDynamicCharArray dynamicArray = new StrictDynamicCharArray();
+
+			CharsetDecoder decoder = Constants.getDecoder();
+			decoder.reset();
+
+			while (in.hasRemaining()) {
+				/*
+				 * Decode the first buffer.capacity chars, passing 'false' to
+				 * indicate that we aren't sure if we are done with the decode
+				 * operation yet.
+				 */
+				decoder.decode(in, buffer, false);
+
+				// Append what we successfully decoded to our tally
+				buffer.flip();
+				dynamicArray.append(buffer);
+
+				// If there is no more to decode, go through finalization
+				if (!in.hasRemaining()) {
+					buffer.clear();
+
+					/*
+					 * Per the CharsetDecoder JDK docs, decoders must be given
+					 * an opportunity to "finalize" their internal state and
+					 * flush out any pending operations once we know we've hit
+					 * the end of the chars to decode.
+					 */
+					decoder.decode(in, buffer, true);
+					decoder.flush(buffer);
+
+					buffer.flip();
+
+					// If any finalized bytes were written, append them.
+					if (buffer.hasRemaining()) {
+						dynamicArray.append(buffer);
+					}
+				}
+			}
+
+			// We are done
+			result = dynamicArray.getArray();
 		}
 
 		return result;
@@ -128,11 +204,58 @@ public class ArrayUtils {
 			val += num;
 		}
 
-		// System.out.println("parseInt [index=" + index + ", length=" + length
-		// + ", text='" + new String(text, index, length)
-		// + "', parsedValue=" + val + "]");
-
 		// Negate the number of it was a negative or just return the total.
 		return (neg ? -val : val);
+	}
+
+	private static byte[] encode(CharBuffer in) {
+		byte[] result = null;
+
+		if (in != null) {
+			ByteBuffer buffer = ByteBuffer.allocate(ENCODE_BUFFER_SIZE);
+			StrictDynamicByteArray dynamicArray = new StrictDynamicByteArray();
+
+			CharsetEncoder encoder = Constants.getEncoder();
+			encoder.reset();
+
+			while (in.hasRemaining()) {
+				/*
+				 * Encode the first buffer.capacity chars, passing 'false' to
+				 * indicate that we aren't sure if we are done with the encode
+				 * operation yet.
+				 */
+				encoder.encode(in, buffer, false);
+
+				// Append what we successfully encoded to our tally
+				buffer.flip();
+				dynamicArray.append(buffer);
+
+				// If there is no more to encode, go through finalization
+				if (!in.hasRemaining()) {
+					buffer.clear();
+
+					/*
+					 * Per the CharsetEncoder JDK docs, encoders must be given
+					 * an opportunity to "finalize" their internal state and
+					 * flush out any pending operations once we know we've hit
+					 * the end of the bytes to encode.
+					 */
+					encoder.encode(in, buffer, true);
+					encoder.flush(buffer);
+
+					buffer.flip();
+
+					// If any finalized bytes were written, append them.
+					if (buffer.hasRemaining()) {
+						dynamicArray.append(buffer);
+					}
+				}
+			}
+
+			// We are done
+			result = dynamicArray.getArray();
+		}
+
+		return result;
 	}
 }

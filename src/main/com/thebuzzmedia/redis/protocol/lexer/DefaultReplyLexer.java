@@ -60,7 +60,7 @@ public class DefaultReplyLexer implements IReplyLexer {
 		IMarker mark = null;
 
 		// First, find the terminating CRLF
-		int crIndex = ArrayUtils.indexOfCRLF(index, data.length, data);
+		int crIndex = ArrayUtils.indexOfCRLF(index, data.length - index, data);
 
 		// Only create a mark if we found the terminating CRLF
 		if (crIndex != Constants.UNDEFINED)
@@ -74,7 +74,7 @@ public class DefaultReplyLexer implements IReplyLexer {
 		IMarker mark = null;
 
 		// First, find the length-terminating CRLF
-		int crIndex = ArrayUtils.indexOfCRLF(index, data.length, data);
+		int crIndex = ArrayUtils.indexOfCRLF(index, data.length - index, data);
 
 		/*
 		 * If we found the \r\n after the length argument, we need to parse the
@@ -134,7 +134,7 @@ public class DefaultReplyLexer implements IReplyLexer {
 		IMarker mark = null;
 
 		// First, find the bulk count-terminating CRLF
-		int crIndex = ArrayUtils.indexOfCRLF(index, data.length, data);
+		int crIndex = ArrayUtils.indexOfCRLF(index, data.length - index, data);
 
 		/*
 		 * If we found the \r\n after the bulk count argument, we need to parse

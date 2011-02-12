@@ -22,6 +22,13 @@ public class StrictDynamicByteArray {
 		buffer.get(array, insertIndex, buffer.remaining());
 	}
 
+	public void append(byte[] bytes) {
+		if (bytes == null)
+			return;
+
+		append(0, bytes.length, bytes);
+	}
+
 	public void append(int index, int length, byte[] bytes)
 			throws IllegalArgumentException {
 		if (index < 0)

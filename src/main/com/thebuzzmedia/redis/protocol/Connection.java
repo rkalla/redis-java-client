@@ -22,6 +22,7 @@ import com.thebuzzmedia.redis.reply.IReply;
 import com.thebuzzmedia.redis.reply.IntegerReply;
 import com.thebuzzmedia.redis.reply.MultiBulkReply;
 import com.thebuzzmedia.redis.reply.SingleLineReply;
+import com.thebuzzmedia.redis.util.ArrayUtils;
 import com.thebuzzmedia.redis.util.StrictDynamicByteArray;
 
 /*
@@ -55,9 +56,6 @@ public class Connection {
 	public static final int REPLY_TIMEOUT = Integer.getInteger(
 			"redis.connection.replyTimeout", 5000);
 
-	public static final int SEND_BUFFER_SIZE = Integer.getInteger(
-			"redis.connection.sendBufferSize", 8192);
-
 	public static final int RECEIVE_BUFFER_SIZE = Integer.getInteger(
 			"redis.connection.receiveBufferSize", 8192);
 
@@ -82,10 +80,6 @@ public class Connection {
 			throw new RuntimeException(
 					"System property 'redis.connection.replyTimeout' value '"
 							+ REPLY_TIMEOUT + "' must be > 0.");
-		if (SEND_BUFFER_SIZE <= 0)
-			throw new RuntimeException(
-					"System property 'redis.connection.sendBufferSize' value '"
-							+ SEND_BUFFER_SIZE + "' must be > 0.");
 		if (RECEIVE_BUFFER_SIZE <= 0)
 			throw new RuntimeException(
 					"System property 'redis.connection.receiveBufferSize' value '"
@@ -103,8 +97,6 @@ public class Connection {
 	}
 
 	private SocketChannel channel;
-
-	private ByteBuffer sendBuffer;
 	private ByteBuffer receiveBuffer;
 
 	public Connection(String hostname) throws IllegalArgumentException,
@@ -143,7 +135,6 @@ public class Connection {
 								+ timeWaited + " ms.");
 		}
 
-		sendBuffer = ByteBuffer.allocateDirect(SEND_BUFFER_SIZE);
 		receiveBuffer = ByteBuffer.allocateDirect(RECEIVE_BUFFER_SIZE);
 	}
 
@@ -211,35 +202,54 @@ public class Connection {
 	}
 
 	protected void sendCommand(ICommand command) throws IOException {
-		CharBuffer source = CharBuffer.wrap(command.getFullCommand());
-		CharsetEncoder encoder = Constants.getEncoder();
+		ByteBuffer source = ByteBuffer.wrap(command.getCommand());
 
 		while (source.hasRemaining()) {
-			sendBuffer.clear();
-			encoder.reset();
-			encoder.encode(source, sendBuffer, false);
-
-			sendBuffer.flip();
-
-			if (channel.write(sendBuffer) <= 0)
+			if (channel.write(source) <= 0)
 				throw new IOException(
-						"Unable to send ["
-								+ command.getName()
-								+ "] command to Redis; no bytes were written out to network stream.");
-
-			if (!source.hasRemaining()) {
-				sendBuffer.clear();
-
-				encoder.encode(source, sendBuffer, true);
-				encoder.flush(sendBuffer);
-
-				if (sendBuffer.position() > 0) {
-					sendBuffer.flip();
-					channel.write(sendBuffer);
-				}
-			}
+						"Unable to send command to Redis, no bytes were written to the network ("
+								+ command + ")");
 		}
 	}
+
+	// protected void sendCommand(ICommand command) throws IOException {
+	// CharBuffer source = CharBuffer.wrap(command.getFullCommand());
+	// CharsetEncoder encoder = Constants.getEncoder();
+	//
+	// while (source.hasRemaining()) {
+	// sendBuffer.clear();
+	// encoder.reset();
+	// encoder.encode(source, sendBuffer, false);
+	//
+	// sendBuffer.flip();
+	//
+	// // TODO: DEBUG
+	// // byte[] bytes = new byte[sendBuffer.remaining()];
+	// // sendBuffer.get(bytes);
+	// // sendBuffer.rewind();
+	// // TODO: DEBUG
+	//
+	// // sendBuffer.flip();
+	//
+	// if (channel.write(sendBuffer) <= 0)
+	// throw new IOException(
+	// "Unable to send ["
+	// + command.getName()
+	// + "] command to Redis; no bytes were written out to network stream.");
+	//
+	// if (!source.hasRemaining()) {
+	// sendBuffer.clear();
+	//
+	// encoder.encode(source, sendBuffer, true);
+	// encoder.flush(sendBuffer);
+	//
+	// if (sendBuffer.position() > 0) {
+	// sendBuffer.flip();
+	// channel.write(sendBuffer);
+	// }
+	// }
+	// }
+	// }
 
 	protected List<IMarker> receiveReply(int requiredReplyCount)
 			throws IOException {
