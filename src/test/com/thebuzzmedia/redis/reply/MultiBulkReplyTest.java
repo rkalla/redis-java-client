@@ -13,7 +13,6 @@ import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.protocol.lexer.DefaultMarker;
 import com.thebuzzmedia.redis.protocol.lexer.IMarker;
 
-//TODO: Add tests for nil/null elements http://redis.io/topics/protocol#nil-reply
 public class MultiBulkReplyTest extends AbstractReplyTest {
 	// static IMarker EMPTY = "";
 	// static IMarker WHITESPACE = "   ";

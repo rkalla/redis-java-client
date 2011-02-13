@@ -5,7 +5,9 @@ import com.thebuzzmedia.redis.command.AbstractCommand;
 public class HINCRBY extends AbstractCommand {
 	public static final String NAME = "HINCRBY";
 
-	public HINCRBY(String key, String field, int increment) {
-		super(NAME, key, field, Integer.toString(increment));
+	public HINCRBY(CharSequence key, CharSequence field, int increment)
+			throws IllegalArgumentException {
+		this.command = createBinarySafeRequest(4, NAME, key, field,
+				Integer.toString(increment));
 	}
 }
