@@ -3,6 +3,18 @@ package com.thebuzzmedia.redis.protocol.lexer;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Lightweight {@link IMarker} implementation. This class does not implement any
+ * logic checks in the constructor to make sure valid values are being passed
+ * in, it is assumed the caller will vet the values before trying to create an
+ * instance of this type.
+ * <p/>
+ * This was done for performance reasons as any {@link IReplyLexer}
+ * implementations will create many instances of this type and should vet the
+ * values ahead of time.
+ * 
+ * @author Riyad Kalla (software@thebuzzmedia.com)
+ */
 public class DefaultMarker implements IMarker {
 	private byte replyType;
 	private int index;
@@ -23,9 +35,23 @@ public class DefaultMarker implements IMarker {
 
 	@Override
 	public String toString() {
-		return DefaultMarker.class.getName() + "[replyType=" + replyType
-				+ ", index=" + index + ", length=" + length + ", source="
-				+ source + ", childMarkerList=" + childMarkerList + "]";
+		return DefaultMarker.class.getName()
+				+ "[replyType="
+				+ replyType
+				+ ", index="
+				+ index
+				+ ", length="
+				+ length
+				+ ", source="
+				+ source
+				+ ", sourceLength="
+				+ (source == null ? "N/A (null)" : source.length)
+				+ ", childMarkerList="
+				+ childMarkerList
+				+ ", childMarkerCount="
+				+ (childMarkerList == null ? "N/A (null)" : childMarkerList
+						.size()) + ", sourceContent=" + new String(source)
+				+ "]";
 	}
 
 	@Override
@@ -55,9 +81,11 @@ public class DefaultMarker implements IMarker {
 	}
 
 	@Override
-	public synchronized void addChildMarker(IMarker child) {
+	public synchronized void addChildMarker(IMarker child)
+			throws IllegalArgumentException {
 		if (child == null)
-			return;
+			throw new IllegalArgumentException(
+					"child cannot be null and must represent a valid IMarker instance.");
 
 		if (childMarkerList == null)
 			childMarkerList = new ArrayList<IMarker>();

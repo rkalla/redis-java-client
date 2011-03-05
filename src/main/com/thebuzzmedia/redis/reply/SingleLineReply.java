@@ -10,6 +10,8 @@ import com.thebuzzmedia.redis.util.StrictDynamicCharArray;
 
 public class SingleLineReply implements IReply<char[]> {
 	public static final byte MIN_BYTE_LENGTH = 4;
+	public static final int MAX_BUFFER_SIZE = Integer.getInteger(
+			"redis.reply.singleLineMaxBufferSize", 512);
 
 	private byte type = Constants.UNDEFINED;
 	private char[] value;
@@ -61,8 +63,16 @@ public class SingleLineReply implements IReply<char[]> {
 		// Wrap the portion of bytes that make up this reply's text
 		ByteBuffer src = ByteBuffer.wrap(marker.getSource(),
 				marker.getIndex() + 1, marker.getLength() - 3);
-		// Most all SingleLine replies are short, so our buffer can be small
-		CharBuffer dest = CharBuffer.allocate(512);
+
+		/*
+		 * Create an optimally sized destination buffer UP TO our max buffer
+		 * size. Decoding bytes to chars will never result in more chars than
+		 * bytes, so we can at least use the same sized buffer if it's smaller
+		 * than our max buffer size.
+		 */
+		CharBuffer dest = CharBuffer
+				.allocate(src.remaining() < MAX_BUFFER_SIZE ? src.remaining()
+						: MAX_BUFFER_SIZE);
 		StrictDynamicCharArray result = new StrictDynamicCharArray();
 
 		CharsetDecoder decoder = Constants.getDecoder();

@@ -8,10 +8,10 @@ import java.nio.charset.CharsetEncoder;
 import com.thebuzzmedia.redis.Constants;
 
 public class ArrayUtils {
-	public static final int ENCODE_BUFFER_SIZE = Integer.getInteger(
-			"redis.util.encodeBufferSize", 4096);
-	public static final int DECODE_BUFFER_SIZE = Integer.getInteger(
-			"redis.util.decodeBufferSize", 4096);
+	public static final int MAX_ENCODE_BUFFER_SIZE = Integer.getInteger(
+			"redis.util.maxEncodeBufferSize", 4096);
+	public static final int MAX_DECODE_BUFFER_SIZE = Integer.getInteger(
+			"redis.util.maxDecodeBufferSize", 4096);
 
 	public static int indexOfCRLF(int index, int length, byte[] data)
 			throws IllegalArgumentException {
@@ -64,43 +64,47 @@ public class ArrayUtils {
 		char[] result = null;
 
 		if (bytes == null) {
-			ByteBuffer in = ByteBuffer.wrap(bytes);
-			CharBuffer buffer = CharBuffer.allocate(DECODE_BUFFER_SIZE);
+			CharsetDecoder decoder = Constants.getDecoder();
+
+			ByteBuffer src = ByteBuffer.wrap(bytes);
+			CharBuffer dest = CharBuffer
+					.allocate(src.remaining() < MAX_DECODE_BUFFER_SIZE ? src
+							.remaining() : MAX_DECODE_BUFFER_SIZE);
 			StrictDynamicCharArray dynamicArray = new StrictDynamicCharArray();
 
-			CharsetDecoder decoder = Constants.getDecoder();
+			// Reset the decoder
 			decoder.reset();
 
-			while (in.hasRemaining()) {
+			while (src.hasRemaining()) {
 				/*
 				 * Decode the first buffer.capacity chars, passing 'false' to
 				 * indicate that we aren't sure if we are done with the decode
 				 * operation yet.
 				 */
-				decoder.decode(in, buffer, false);
+				decoder.decode(src, dest, false);
 
 				// Append what we successfully decoded to our tally
-				buffer.flip();
-				dynamicArray.append(buffer);
+				dest.flip();
+				dynamicArray.append(dest);
 
 				// If there is no more to decode, go through finalization
-				if (!in.hasRemaining()) {
-					buffer.clear();
+				if (!src.hasRemaining()) {
+					dest.clear();
 
 					/*
-					 * Per the CharsetDecoder JDK docs, decoders must be given
+					 * Per the CharsetDecoder Javadocs, decoders must be given
 					 * an opportunity to "finalize" their internal state and
 					 * flush out any pending operations once we know we've hit
 					 * the end of the chars to decode.
 					 */
-					decoder.decode(in, buffer, true);
-					decoder.flush(buffer);
+					decoder.decode(src, dest, true);
+					decoder.flush(dest);
 
-					buffer.flip();
+					dest.flip();
 
 					// If any finalized bytes were written, append them.
-					if (buffer.hasRemaining()) {
-						dynamicArray.append(buffer);
+					if (dest.hasRemaining()) {
+						dynamicArray.append(dest);
 					}
 				}
 			}
@@ -212,10 +216,16 @@ public class ArrayUtils {
 		byte[] result = null;
 
 		if (in != null) {
-			ByteBuffer buffer = ByteBuffer.allocate(ENCODE_BUFFER_SIZE);
+			CharsetEncoder encoder = Constants.getEncoder();
+
+			int size = Math.round(encoder.averageBytesPerChar()
+					* (float) in.remaining());
+			ByteBuffer buffer = ByteBuffer
+					.allocate(size < MAX_ENCODE_BUFFER_SIZE ? size
+							: MAX_ENCODE_BUFFER_SIZE);
 			StrictDynamicByteArray dynamicArray = new StrictDynamicByteArray();
 
-			CharsetEncoder encoder = Constants.getEncoder();
+			// Reset the encoder
 			encoder.reset();
 
 			while (in.hasRemaining()) {
@@ -235,7 +245,7 @@ public class ArrayUtils {
 					buffer.clear();
 
 					/*
-					 * Per the CharsetEncoder JDK docs, encoders must be given
+					 * Per the CharsetEncoder Javadocs, encoders must be given
 					 * an opportunity to "finalize" their internal state and
 					 * flush out any pending operations once we know we've hit
 					 * the end of the bytes to encode.

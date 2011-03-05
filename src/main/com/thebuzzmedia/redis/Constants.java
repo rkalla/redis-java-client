@@ -6,7 +6,7 @@ import java.nio.charset.CharsetEncoder;
 
 public class Constants {
 	public static final int UNDEFINED = -1;
-
+	
 	public static final byte REPLY_TYPE_INTEGER = 58; // :
 	public static final byte REPLY_TYPE_SINGLE_LINE = 43; // +
 	public static final byte REPLY_TYPE_BULK = 36; // $

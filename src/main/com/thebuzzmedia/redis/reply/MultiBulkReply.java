@@ -7,6 +7,7 @@ import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.protocol.lexer.IMarker;
 
 public class MultiBulkReply implements IReply<List<BulkReply>> {
+	// TODO: See if the new lexing style effects this and it needs to be shorter.
 	public static final byte MIN_BYTE_LENGTH = 4;
 
 	private byte type = Constants.UNDEFINED;
@@ -70,12 +71,15 @@ public class MultiBulkReply implements IReply<List<BulkReply>> {
 		else {
 			List<IMarker> markerList = marker.getChildMarkerList();
 
-			// 1st child marker is the bulk count, the rest mark bulk replies.
-			int bulkCount = markerList.size() - 1;
-			List<BulkReply> replyList = new ArrayList<BulkReply>(bulkCount);
+			int size = markerList.size();
+			List<BulkReply> replyList = new ArrayList<BulkReply>(size);
 
-			for (int i = 0; i < bulkCount; i++) {
-				replyList.add(new BulkReply(markerList.get(1 + i)));
+			/*
+			 * Run through all the markers we have for child BulkReplies and
+			 * create/add them to this MultiBulk.
+			 */
+			for (int i = 0; i < size; i++) {
+				replyList.add(new BulkReply(markerList.get(i)));
 			}
 
 			return replyList;

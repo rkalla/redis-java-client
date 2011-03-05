@@ -13,7 +13,7 @@ public interface IMarker {
 	
 	public boolean hasChildren();
 	
-	public void addChildMarker(IMarker child);
+	public void addChildMarker(IMarker child) throws IllegalArgumentException;
 
 	public List<IMarker> getChildMarkerList();
 }

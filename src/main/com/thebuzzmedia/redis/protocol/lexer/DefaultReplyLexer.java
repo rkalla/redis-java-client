@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.protocol.MalformedReplyException;
+import com.thebuzzmedia.redis.reply.IReply;
 import com.thebuzzmedia.redis.util.ArrayUtils;
 
 public class DefaultReplyLexer implements IReplyLexer {
@@ -45,8 +46,13 @@ public class DefaultReplyLexer implements IReplyLexer {
 			if (mark != null) {
 				markerList.add(mark);
 
-				// Update the index to point beyond the marked data
-				index += mark.getLength();
+				/*
+				 * Update the index to point at the last index that was included
+				 * in the mark; after we cycle back up to the for-loop it will
+				 * increment the index 1 more, pointing at the first char after
+				 * our mark.
+				 */
+				index += mark.getLength() - 1;
 
 				// Update lexer state to indicate we are not mid-reply
 				state = State.COMPLETE;
@@ -56,6 +62,51 @@ public class DefaultReplyLexer implements IReplyLexer {
 		return state;
 	}
 
+	/**
+	 * Convenience method used to create an {@link IMarker} representing the
+	 * argument values passed in ONLY if the following conditions are met:
+	 * <ol>
+	 * <li><code>index</code> is &gt;= <code>0</code></li>
+	 * <li><code>source</code> is not <code>null</code></li>
+	 * <li><code>(index + length)</code> is &lt;= <code>source.length</code></li>
+	 * <li><code>replyType</code> is a valid reply type defined in the
+	 * {@link Constants} class.</li>
+	 * </ol>
+	 * If any of those conditions are <code>false</code>, then <code>null</code>
+	 * is returned.
+	 * <p/>
+	 * This helps keep more complex bounds-checking code out of the individual
+	 * <code>markXXX</code> methods.
+	 * <p/>
+	 * This also helps avoid creating invalid {@link DefaultMarker} instances
+	 * which later result in {@link IllegalArgumentException}s when trying to
+	 * generate valid {@link IReply} instances from them.
+	 * 
+	 * @param type
+	 *            The type of the reply.
+	 * @param index
+	 *            The index of <code>source</code> where the mark will start.
+	 * @param length
+	 *            The length of the mark.
+	 * @param source
+	 *            The <code>byte[]</code> source that the mark was generated
+	 *            from.
+	 * 
+	 * @return an {@link IMarker} representing the arguments passed in or
+	 *         <code>null</code> if there was something wrong with any fo the
+	 *         arguments as described above.
+	 */
+	protected IMarker safelyCreateMark(byte type, int index, int length,
+			byte[] source) {
+		IMarker mark = null;
+
+		if (index >= 0 && source != null && (index + length) <= source.length
+				&& Constants.isValidType(type))
+			return new DefaultMarker(type, index, length, source);
+
+		return mark;
+	}
+
 	protected IMarker markSimpleReply(byte type, int index, byte[] data) {
 		IMarker mark = null;
 
@@ -63,8 +114,9 @@ public class DefaultReplyLexer implements IReplyLexer {
 		int crIndex = ArrayUtils.indexOfCRLF(index, data.length - index, data);
 
 		// Only create a mark if we found the terminating CRLF
-		if (crIndex != Constants.UNDEFINED)
-			mark = new DefaultMarker(type, index, (crIndex + 2) - index, data);
+		if (crIndex != Constants.UNDEFINED) {
+			mark = safelyCreateMark(type, index, (crIndex + 2) - index, data);
+		}
 
 		return mark;
 	}
@@ -78,7 +130,7 @@ public class DefaultReplyLexer implements IReplyLexer {
 
 		/*
 		 * If we found the \r\n after the length argument, we need to parse the
-		 * given length so we know how long this reply is.
+		 * given length so we know how many bytes this reply is.
 		 */
 		if (crIndex != Constants.UNDEFINED) {
 			int length = Constants.UNDEFINED;
@@ -88,7 +140,7 @@ public class DefaultReplyLexer implements IReplyLexer {
 						- (index + 1), data);
 			} catch (Exception e) {
 				throw new MalformedReplyException(
-						"Unable to parse the Bulk reply length as an integer, the value '"
+						"Unable to parse the Bulk reply byte length as an integer, the value '"
 								+ new String(data, index + 1, crIndex
 										- (index + 1)) + "' is malformed.");
 			}
@@ -100,29 +152,21 @@ public class DefaultReplyLexer implements IReplyLexer {
 
 			/*
 			 * If length was parsed as -1, that is Redis's "nil" reply, so there
-			 * is no body. Otherwise we add the reply length and 4 (for
-			 * \n...\r\n) to the current index and subtract our starting index
-			 * for the length.
+			 * is no body. Otherwise we mark the payload portion of the
+			 * BulkReply.
 			 */
 			if (length == Constants.UNDEFINED) {
-				// Represent a nil bulk reply as a no-child mark
-				mark = new DefaultMarker(Constants.REPLY_TYPE_BULK, index,
-						(crIndex + 2) - index, data);
+				mark = safelyCreateMark(Constants.REPLY_TYPE_BULK, index,
+						crIndex + 2 - index, data);
 			} else {
-				int payloadStartIndex = crIndex + 2;
-
-				// Create the parent mark for this 2-part bulk reply
-				mark = new DefaultMarker(Constants.REPLY_TYPE_BULK, index, data);
-
-				// Add a child marking the length portion
-				mark.addChildMarker(new DefaultMarker(
-						Constants.REPLY_TYPE_BULK, index, payloadStartIndex
-								- index, data));
-
-				// Add a child marking the payload portion
-				mark.addChildMarker(new DefaultMarker(
-						Constants.REPLY_TYPE_BULK, payloadStartIndex,
-						length + 2, data));
+				/*
+				 * Mark the payload portion of the reply. It's position starts 2
+				 * after the terminating \r\n after the length and runs for the
+				 * length reported to us by Redis plus 2 more for the
+				 * terminating \r\n.
+				 */
+				mark = safelyCreateMark(Constants.REPLY_TYPE_BULK, crIndex + 2,
+						length + 2, data);
 			}
 		}
 
@@ -159,37 +203,43 @@ public class DefaultReplyLexer implements IReplyLexer {
 			 * otherwise we need to mark the given number of bulk replies.
 			 */
 			if (bulkCount == Constants.UNDEFINED || bulkCount == 0) {
-				// Represent a nil multi-bulk reply as a no-child Mark
-				mark = new DefaultMarker(Constants.REPLY_TYPE_MULTI_BULK,
-						index, (crIndex + 2) - index, data);
+				mark = safelyCreateMark(Constants.REPLY_TYPE_MULTI_BULK, index,
+						crIndex + 2 - index, data);
 			} else {
 				/*
-				 * Create the parent MultiBuild reply that we will add child
-				 * marks to as we find them.
+				 * Create the parent MultiBuilk reply that we will add child
+				 * BulkReply marks to as we find them.
+				 * 
+				 * As we add child marks the parent's length property will be
+				 * expanded to encompass them.
 				 */
-				mark = new DefaultMarker(Constants.REPLY_TYPE_MULTI_BULK,
-						index, data);
+				mark = safelyCreateMark(Constants.REPLY_TYPE_MULTI_BULK, index,
+						0, data);
 
-				// Add the first child mark denoting the length argument
-				mark.addChildMarker(new DefaultMarker(
-						Constants.REPLY_TYPE_MULTI_BULK, index, (crIndex + 2)
-								- index, data));
-
-				// Update the index to point at the first byte after the \r\n
+				/*
+				 * Update the index to point at the first byte after the
+				 * terminating \r\n for the bulk count.
+				 */
 				index = crIndex + 2;
 
 				/*
-				 * Keep parsing the bulk replies the multi-bulk told us it had
-				 * until we get them all or we encounter an early EOF and cancel
-				 * marking the entire multi-bulk.
+				 * Parse as many BulkReplies as the bulk count told us this
+				 * MultiBulk had. If we are unable to parse a BulkReply (get
+				 * null) that means the bytes required to represent this reply
+				 * completely are not receiving completely from the server, so
+				 * return to the connection and wait for more bytes and we'll
+				 * try and mark the entire MultiBulk in a future call to the
+				 * lexer.
 				 */
 				for (int i = 0; mark != null && i < bulkCount; i++) {
 					IMarker bulkMark = markBulkReply(index, data);
 
 					if (bulkMark == null) {
 						/*
-						 * This multi-bulk is incomplete, so we cannot return a
-						 * valid mark for it.
+						 * This multi-bulk is incomplete. We just tried to parse
+						 * a BulkReply and failed, so we need more bytes to
+						 * represent the full MultiBulkReply and cannot return a
+						 * valid mark for it yet.
 						 */
 						mark = null;
 					} else {

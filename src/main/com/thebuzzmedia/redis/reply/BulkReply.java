@@ -9,7 +9,9 @@ import com.thebuzzmedia.redis.protocol.lexer.IMarker;
 import com.thebuzzmedia.redis.util.StrictDynamicCharArray;
 
 public class BulkReply implements IReply<char[]> {
-	public static final byte MIN_BYTE_LENGTH = 5;
+	public static final byte MIN_BYTE_LENGTH = 3;
+	public static final int MAX_BUFFER_SIZE = Integer.getInteger(
+			"redis.reply.bulkMaxBufferSize", 4096);
 
 	private byte type = Constants.UNDEFINED;
 	private char[] value;
@@ -21,9 +23,13 @@ public class BulkReply implements IReply<char[]> {
 			throw new IllegalArgumentException(
 					"marker.getReplyType must be equal to Constants.REPLY_TYPE_BULK in order to create a BulkReply from this marker.");
 		if (marker.getIndex() < 0 || marker.getLength() < MIN_BYTE_LENGTH)
-			throw new IllegalArgumentException("marker index ["
-					+ marker.getIndex() + "] and length [" + marker.getLength()
-					+ "] do not mark the bounds of a valid Bulk reply.");
+			throw new IllegalArgumentException(
+					"marker index ["
+							+ marker.getIndex()
+							+ "] and length ["
+							+ marker.getLength()
+							+ "] do not mark the bounds of a valid Bulk reply which is always at least "
+							+ MIN_BYTE_LENGTH + " bytes long.");
 
 		this.type = marker.getReplyType();
 
@@ -70,18 +76,23 @@ public class BulkReply implements IReply<char[]> {
 		if (!marker.hasChildren())
 			return null;
 		else {
-			// With our lexing logic, the 2nd child represents the payload
-			IMarker payloadMarker = marker.getChildMarkerList().get(1);
-
 			// Wrap the portion of bytes that make up this reply's text
 			ByteBuffer src = ByteBuffer.wrap(marker.getSource(),
-					payloadMarker.getIndex(), payloadMarker.getLength() - 2);
+					marker.getIndex(), marker.getLength() - 2);
 
-			// Bulk replies can be large, be generous with the CharBuffer size
-			CharBuffer dest = CharBuffer.allocate(8192);
+			/*
+			 * Create an optimally sized destination buffer UP TO our max buffer
+			 * size. Decoding bytes to chars will never result in more chars
+			 * than bytes, so we can at least use the same sized buffer if it's
+			 * smaller than our max buffer size.
+			 */
+			CharBuffer dest = CharBuffer
+					.allocate(src.remaining() < MAX_BUFFER_SIZE ? src
+							.remaining() : MAX_BUFFER_SIZE);
 			StrictDynamicCharArray result = new StrictDynamicCharArray();
-
 			CharsetDecoder decoder = Constants.getDecoder();
+
+			// Reset the decoder.
 			decoder.reset();
 
 			/*
@@ -110,9 +121,9 @@ public class BulkReply implements IReply<char[]> {
 				 */
 				if (!src.hasRemaining()) {
 					/*
-					 * Per the CharsetEn/Decoder classes, we must now give the
-					 * decoder an opportunity to finalize and flush its decoded
-					 * data.
+					 * Per the CharsetEncoder/Decoder class Javadoc, we must now
+					 * give the decoder an opportunity to finalize and flush its
+					 * decoded data.
 					 */
 					decoder.decode(src, dest, true);
 					decoder.flush(dest);

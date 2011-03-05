@@ -53,8 +53,12 @@ public class Connection {
 	public static final int CONNECT_TIMEOUT = Integer.getInteger(
 			"redis.connection.connectTimeout", 60000);
 
+	public static final int SEND_TIMEOUT = Integer.getInteger(
+			"redis.connection.sendTimeout", 2500);
+
+	// TODO: Before production, up back to 30 secs or so
 	public static final int REPLY_TIMEOUT = Integer.getInteger(
-			"redis.connection.replyTimeout", 5000);
+			"redis.connection.replyTimeout", 10000);
 
 	public static final int RECEIVE_BUFFER_SIZE = Integer.getInteger(
 			"redis.connection.receiveBufferSize", 8192);
@@ -65,8 +69,11 @@ public class Connection {
 	private static final int CONNECT_CHECK_INTERVAL = Integer.getInteger(
 			"redis.connection.connectCheckInterval", 35);
 
+	private static final int SEND_CHECK_INTERVAL = Integer.getInteger(
+			"redis.connection.sendCheckInterval", 5);
+
 	private static final int REPLY_CHECK_INTERVAL = Integer.getInteger(
-			"redis.connection.replyCheckInterval", 10);
+			"redis.connection.replyCheckInterval", 15);
 
 	private static final IReplyLexer REPLY_LEXER = new DefaultReplyLexer();
 
@@ -202,14 +209,31 @@ public class Connection {
 	}
 
 	protected void sendCommand(ICommand command) throws IOException {
+		long timeWaited = 0;
 		ByteBuffer source = ByteBuffer.wrap(command.getCommand());
 
-		while (source.hasRemaining()) {
-			if (channel.write(source) <= 0)
-				throw new IOException(
-						"Unable to send command to Redis, no bytes were written to the network ("
-								+ command + ")");
+		while (source.hasRemaining() && timeWaited <= SEND_TIMEOUT) {
+			/*
+			 * If we are unable to write any bytes to the underlying network
+			 * stream (we filled it up), we should go to sleep for a very brief
+			 * interval and try again momentarily.
+			 */
+			if (channel.write(source) <= 0) {
+				try {
+					Thread.sleep(SEND_CHECK_INTERVAL);
+				} catch (InterruptedException e) {
+					// no-op
+				}
+
+				timeWaited += SEND_CHECK_INTERVAL;
+			}
 		}
+
+		// We timed out and still had bytes to write, so throw an exception.
+		if (source.hasRemaining())
+			throw new IOException(
+					"Unable to send command to Redis, no bytes were written to the network ("
+							+ command + ")");
 	}
 
 	// protected void sendCommand(ICommand command) throws IOException {
@@ -299,6 +323,15 @@ public class Connection {
 			 */
 			if (markerList.size() < requiredReplyCount) {
 				try {
+					/*
+					 * We sleep here for a very small unit of time as opposed to
+					 * spinning right back around to the top of the while loop
+					 * to "read" more data in the case where the server is
+					 * bogged down and there is no more data from the network
+					 * yet; if we didn't sleep, even for a little bit, the
+					 * client Thread calling this would peg the CPU waiting on
+					 * data from the server and kill the app.
+					 */
 					Thread.sleep(REPLY_CHECK_INTERVAL);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
