@@ -3,7 +3,7 @@ package com.thebuzzmedia.redis.protocol.lexer;
 import java.util.List;
 
 import com.thebuzzmedia.redis.Constants;
-import com.thebuzzmedia.redis.protocol.MalformedReplyException;
+import com.thebuzzmedia.redis.MalformedReplyException;
 import com.thebuzzmedia.redis.reply.IReply;
 import com.thebuzzmedia.redis.util.ArrayUtils;
 
@@ -80,7 +80,9 @@ public class DefaultReplyLexer implements IReplyLexer {
 	 * <p/>
 	 * This also helps avoid creating invalid {@link DefaultMarker} instances
 	 * which later result in {@link IllegalArgumentException}s when trying to
-	 * generate valid {@link IReply} instances from them.
+	 * generate valid {@link IReply} instances from them where an IMark was
+	 * created with an index and length longer than it's source (at the time of
+	 * creation).
 	 * 
 	 * @param type
 	 *            The type of the reply.
@@ -102,7 +104,7 @@ public class DefaultReplyLexer implements IReplyLexer {
 
 		if (index >= 0 && source != null && (index + length) <= source.length
 				&& Constants.isValidType(type))
-			return new DefaultMarker(type, index, length, source);
+			mark = new DefaultMarker(type, index, length, source);
 
 		return mark;
 	}
@@ -156,6 +158,11 @@ public class DefaultReplyLexer implements IReplyLexer {
 			 * BulkReply.
 			 */
 			if (length == Constants.UNDEFINED) {
+				/*
+				 * We mark the bytes that make up the standard NIL reply, in
+				 * BulkReply we check for the standard reply pattern and convert
+				 * it to a NIL reply when we see it.
+				 */
 				mark = safelyCreateMark(Constants.REPLY_TYPE_BULK, index,
 						crIndex + 2 - index, data);
 			} else {

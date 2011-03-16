@@ -84,8 +84,7 @@ public class DefaultMarker implements IMarker {
 	public synchronized void addChildMarker(IMarker child)
 			throws IllegalArgumentException {
 		if (child == null)
-			throw new IllegalArgumentException(
-					"child cannot be null and must represent a valid IMarker instance.");
+			throw new IllegalArgumentException("child cannot be null");
 
 		if (childMarkerList == null)
 			childMarkerList = new ArrayList<IMarker>();

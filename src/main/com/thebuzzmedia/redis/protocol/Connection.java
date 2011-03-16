@@ -4,9 +4,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.CharsetEncoder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -22,7 +20,6 @@ import com.thebuzzmedia.redis.reply.IReply;
 import com.thebuzzmedia.redis.reply.IntegerReply;
 import com.thebuzzmedia.redis.reply.MultiBulkReply;
 import com.thebuzzmedia.redis.reply.SingleLineReply;
-import com.thebuzzmedia.redis.util.ArrayUtils;
 import com.thebuzzmedia.redis.util.StrictDynamicByteArray;
 
 /*
@@ -54,11 +51,10 @@ public class Connection {
 			"redis.connection.connectTimeout", 60000);
 
 	public static final int SEND_TIMEOUT = Integer.getInteger(
-			"redis.connection.sendTimeout", 2500);
+			"redis.connection.sendTimeout", 5000);
 
-	// TODO: Before production, up back to 30 secs or so
 	public static final int REPLY_TIMEOUT = Integer.getInteger(
-			"redis.connection.replyTimeout", 10000);
+			"redis.connection.replyTimeout", 60000);
 
 	public static final int RECEIVE_BUFFER_SIZE = Integer.getInteger(
 			"redis.connection.receiveBufferSize", 8192);
@@ -67,7 +63,7 @@ public class Connection {
 	public static final List<IReply> EMPTY_REPLY_LIST = Collections.emptyList();
 
 	private static final int CONNECT_CHECK_INTERVAL = Integer.getInteger(
-			"redis.connection.connectCheckInterval", 35);
+			"redis.connection.connectCheckInterval", 25);
 
 	private static final int SEND_CHECK_INTERVAL = Integer.getInteger(
 			"redis.connection.sendCheckInterval", 5);
@@ -83,6 +79,10 @@ public class Connection {
 			throw new RuntimeException(
 					"System property 'redis.connection.connectTimeout' value '"
 							+ CONNECT_TIMEOUT + "' must be > 0.");
+		if (SEND_TIMEOUT <= 0)
+			throw new RuntimeException(
+					"System property 'redis.connection.sendTimeout' value '"
+							+ SEND_TIMEOUT + "' must be > 0.");
 		if (REPLY_TIMEOUT <= 0)
 			throw new RuntimeException(
 					"System property 'redis.connection.replyTimeout' value '"
@@ -97,6 +97,10 @@ public class Connection {
 			throw new RuntimeException(
 					"System property 'redis.connection.connectCheckInterval' value '"
 							+ CONNECT_CHECK_INTERVAL + "' must be > 0.");
+		if (SEND_CHECK_INTERVAL <= 0)
+			throw new RuntimeException(
+					"System property 'redis.connection.sendCheckInterval' value '"
+							+ SEND_CHECK_INTERVAL + "' must be > 0.");
 		if (REPLY_CHECK_INTERVAL <= 0)
 			throw new RuntimeException(
 					"System property 'redis.connection.replyCheckInterval' value '"
@@ -120,6 +124,7 @@ public class Connection {
 			IOException {
 		if (address == null)
 			throw new IllegalArgumentException("address cannot be null");
+
 		channel = SocketChannel.open();
 		channel.configureBlocking(false);
 
@@ -130,33 +135,47 @@ public class Connection {
 				try {
 					Thread.sleep(CONNECT_CHECK_INTERVAL);
 				} catch (InterruptedException e) {
-					// no-op
+					e.printStackTrace();
 				}
 
 				timeWaited += CONNECT_CHECK_INTERVAL;
 			}
 
 			if (!channel.isConnected())
-				throw new IOException(
-						"Connection to Redis server time out, unable to connect within "
-								+ timeWaited + " ms.");
+				throw new IOException("Connection to Redis server timed out ("
+						+ CONNECT_TIMEOUT + " ms)");
 		}
 
+		/**
+		 * Direct allocations should be used sparingly and based on the design
+		 * (and risk/reward issues) with direct buffers, they should only be
+		 * used for long-lived, performance-sensitive buffers.
+		 * 
+		 * Our receive buffer is both of those things, living for the entire
+		 * duration of the connection (and always being re-used) as well as
+		 * being performance-sensitive given that we can get the bytes out of
+		 * the network stack and into a direct buffer (by the OS) faster than we
+		 * can get it converted by the JVM into bytes managed from inside.
+		 */
 		receiveBuffer = ByteBuffer.allocateDirect(RECEIVE_BUFFER_SIZE);
 	}
 
 	@SuppressWarnings("rawtypes")
 	public List<IReply> execute(ICommand... commands) throws IOException {
-		if (!channel.isConnected())
+		if (!channel.isConnected()) {
+			// TODO: Add reconnect logic here.
+
 			throw new IOException(
 					"Unable to execute the given command(s). This connection was either never successfully connected to a Redis server or the connection was lost.");
+		}
 
 		List<IReply> replyList = EMPTY_REPLY_LIST;
 
+		// Only continue if there are commands to send
 		if (commands != null && commands.length > 0) {
 			replyList = new ArrayList<IReply>(commands.length);
 
-			// Send all pending commands to Redis
+			// Send all commands (pipeline) to Redis.
 			for (ICommand command : commands)
 				sendCommand(command);
 
@@ -169,10 +188,16 @@ public class Connection {
 			/*
 			 * Convert all the marks to replies. If we got this far and didn't
 			 * get an IOException from the receiveReply call above, then we have
-			 * all our replies and all marks were successfully created.
+			 * all our replies and all marks were successfully created so there
+			 * is no need for error-handling code here, just continue
+			 * processing.
 			 */
 			replyList = new ArrayList<IReply>(markerList.size());
 
+			/*
+			 * Marks have a 1:1 relationship with Replies, so convert every
+			 * IMark into its corresponding IReply.
+			 */
 			for (IMarker mark : markerList) {
 				switch (mark.getReplyType()) {
 				case Constants.REPLY_TYPE_INTEGER:
@@ -212,6 +237,9 @@ public class Connection {
 		long timeWaited = 0;
 		ByteBuffer source = ByteBuffer.wrap(command.getCommand());
 
+		// Keep track of this for a more informative exception message
+		int originalByteCount = source.remaining();
+
 		while (source.hasRemaining() && timeWaited <= SEND_TIMEOUT) {
 			/*
 			 * If we are unable to write any bytes to the underlying network
@@ -231,49 +259,12 @@ public class Connection {
 
 		// We timed out and still had bytes to write, so throw an exception.
 		if (source.hasRemaining())
-			throw new IOException(
-					"Unable to send command to Redis, no bytes were written to the network ("
-							+ command + ")");
+			throw new IOException("Unable to finish sending command ["
+					+ command + "] to Redis before timing out (" + SEND_TIMEOUT
+					+ " ms), " + (originalByteCount - source.remaining())
+					+ " of " + originalByteCount
+					+ " bytes were written to the network.");
 	}
-
-	// protected void sendCommand(ICommand command) throws IOException {
-	// CharBuffer source = CharBuffer.wrap(command.getFullCommand());
-	// CharsetEncoder encoder = Constants.getEncoder();
-	//
-	// while (source.hasRemaining()) {
-	// sendBuffer.clear();
-	// encoder.reset();
-	// encoder.encode(source, sendBuffer, false);
-	//
-	// sendBuffer.flip();
-	//
-	// // TODO: DEBUG
-	// // byte[] bytes = new byte[sendBuffer.remaining()];
-	// // sendBuffer.get(bytes);
-	// // sendBuffer.rewind();
-	// // TODO: DEBUG
-	//
-	// // sendBuffer.flip();
-	//
-	// if (channel.write(sendBuffer) <= 0)
-	// throw new IOException(
-	// "Unable to send ["
-	// + command.getName()
-	// + "] command to Redis; no bytes were written out to network stream.");
-	//
-	// if (!source.hasRemaining()) {
-	// sendBuffer.clear();
-	//
-	// encoder.encode(source, sendBuffer, true);
-	// encoder.flush(sendBuffer);
-	//
-	// if (sendBuffer.position() > 0) {
-	// sendBuffer.flip();
-	// channel.write(sendBuffer);
-	// }
-	// }
-	// }
-	// }
 
 	protected List<IMarker> receiveReply(int requiredReplyCount)
 			throws IOException {
@@ -289,10 +280,12 @@ public class Connection {
 		 */
 		while (markerList.size() < requiredReplyCount
 				&& timeWaited < REPLY_TIMEOUT) {
+			// Reset the buffer
 			receiveBuffer.clear();
 
 			// Read all available bytes or up to the size of our read buffer
 			while (channel.read(receiveBuffer) > 0) {
+				// Prepare the buffer to be read from
 				receiveBuffer.flip();
 
 				// Append what we read so far to our resultant byte[]
@@ -341,11 +334,13 @@ public class Connection {
 			}
 		}
 
-		// Before returning, make sure we didn't time out.
+		// Make sure we didn't time out and we have all our replies
 		if (markerList.size() < requiredReplyCount
 				&& timeWaited >= REPLY_TIMEOUT)
 			throw new IOException(
-					"Connection timed out waiting for a complete reply from the Redis server for ["
+					"Connection timed out ("
+							+ REPLY_TIMEOUT
+							+ " ms) waiting for a complete reply from the Redis server for ["
 							+ requiredReplyCount
 							+ "] issued commands. Only ["
 							+ markerList.size()

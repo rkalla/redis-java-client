@@ -9,15 +9,12 @@ import com.thebuzzmedia.redis.protocol.lexer.IMarker;
 
 public class BulkReplyTest extends AbstractReplyTest {
 	static IMarker EMPTY = createMark(Constants.REPLY_TYPE_BULK, "");
-	static IMarker WHITESPACE = createMark(Constants.REPLY_TYPE_BULK, "   ");
 	static IMarker INVALID = createMark(Constants.REPLY_TYPE_BULK, "@");
 	static IMarker NO_SIZE = createMark(Constants.REPLY_TYPE_BULK, "$");
 	static IMarker NO_CRLF = createMark(Constants.REPLY_TYPE_BULK, "$1");
-	static IMarker NO_CONTENT = createBulkMark("$2\r\n");
 	static IMarker SIZE_TOO_SHORT = createBulkMarkParseLength("$10\r\nincompl");
 	static IMarker SIZE_TOO_LONG = createBulkMarkParseLength("$3\r\nsmall");
 	static IMarker INCOMPLETE = createBulkMark("$9\r\nnoendcrlf");
-	static IMarker NIL = createMark(Constants.REPLY_TYPE_BULK, "$-1\r\n");
 
 	static String WORD = "OK";
 	static String SPACE = "hello world";
@@ -57,16 +54,6 @@ public class BulkReplyTest extends AbstractReplyTest {
 	}
 
 	@Test
-	public void testWhitespace() {
-		try {
-			new BulkReply(WHITESPACE);
-			assertTrue(false); // Shouldn't get here, FAIL
-		} catch (IllegalArgumentException e) {
-			assertNotNull(e);
-		}
-	}
-
-	@Test
 	public void testInvalid() {
 		try {
 			new BulkReply(INVALID);
@@ -90,16 +77,6 @@ public class BulkReplyTest extends AbstractReplyTest {
 	public void testNoCRLF() {
 		try {
 			new BulkReply(NO_CRLF);
-			assertTrue(false); // Shouldn't get here, FAIL
-		} catch (IllegalArgumentException e) {
-			assertNotNull(e);
-		}
-	}
-
-	@Test
-	public void testNoContent() {
-		try {
-			new BulkReply(NO_CONTENT);
 			assertTrue(false); // Shouldn't get here, FAIL
 		} catch (IllegalArgumentException e) {
 			assertNotNull(e);
@@ -139,12 +116,6 @@ public class BulkReplyTest extends AbstractReplyTest {
 		} catch (IllegalArgumentException e) {
 			assertTrue(false);
 		}
-	}
-
-	@Test
-	public void testNil() {
-		BulkReply b = new BulkReply(NIL);
-		assertTrue(b.isNil());
 	}
 
 	@Test

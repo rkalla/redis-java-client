@@ -11,13 +11,13 @@ public abstract class AbstractReplyTest {
 
 	public static IMarker createBulkMark(String text) {
 		int index = text.indexOf('\n');
-		IMarker parent = new DefaultMarker(Constants.REPLY_TYPE_BULK, 0,
-				text.getBytes());
-
-		parent.addChildMarker(new DefaultMarker(Constants.REPLY_TYPE_BULK, 0,
-				index + 1, text.getBytes()));
-		parent.addChildMarker(new DefaultMarker(Constants.REPLY_TYPE_BULK,
-				index + 1, text.length() - (index + 1), text.getBytes()));
+//		IMarker parent = new DefaultMarker(Constants.REPLY_TYPE_BULK, 0,
+//				text.getBytes());
+//
+//		parent.addChildMarker(new DefaultMarker(Constants.REPLY_TYPE_BULK, 0,
+//				index + 1, text.getBytes()));
+		IMarker parent = new DefaultMarker(Constants.REPLY_TYPE_BULK,
+				index + 1, text.length() - (index + 1), text.getBytes());
 
 		return parent;
 	}

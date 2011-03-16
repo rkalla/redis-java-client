@@ -68,17 +68,19 @@ public class BulkReply implements IReply<char[]> {
 	}
 
 	protected char[] parseMarker(IMarker marker) {
+		byte[] source = marker.getSource();
+
 		/*
-		 * First we check if this marker represents a nil reply (has no
-		 * children). If it has children then it is a valid bulk reply and we
-		 * should process it as such.
+		 * Check for a NIL marker. This is a special case that always has the
+		 * same properties and is fast/easy to check for: length of 5 ($-1\r\n)
+		 * and the bytes at position 1 and 2 are "-" and "1" respectively.
 		 */
-		if (!marker.hasChildren())
+		if (marker.getLength() == 5 && source[1] == 45 && source[2] == 49)
 			return null;
 		else {
 			// Wrap the portion of bytes that make up this reply's text
-			ByteBuffer src = ByteBuffer.wrap(marker.getSource(),
-					marker.getIndex(), marker.getLength() - 2);
+			ByteBuffer src = ByteBuffer.wrap(source, marker.getIndex(),
+					marker.getLength() - 2);
 
 			/*
 			 * Create an optimally sized destination buffer UP TO our max buffer

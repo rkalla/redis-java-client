@@ -7,7 +7,6 @@ import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.protocol.lexer.IMarker;
 
 public class MultiBulkReply implements IReply<List<BulkReply>> {
-	// TODO: See if the new lexing style effects this and it needs to be shorter.
 	public static final byte MIN_BYTE_LENGTH = 4;
 
 	private byte type = Constants.UNDEFINED;
