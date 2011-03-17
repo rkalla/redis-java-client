@@ -13,6 +13,35 @@ public class ArrayUtils {
 	public static final int MAX_DECODE_BUFFER_SIZE = Integer.getInteger(
 			"redis.util.maxDecodeBufferSize", 4096);
 
+	/**
+	 * Source: http://snippets.dzone.com/posts/show/93
+	 * 
+	 * Modification made to only return a <code>byte[]</code> whose length
+	 * matches the number of digits in the original integer.
+	 * 
+	 * @param value
+	 *            The integer value to convert to a byte array.
+	 * 
+	 * @return a <code>byte[]</code> containing the numeric value of the
+	 *         original integer. The length of the array will match the number
+	 *         of digits in the number.
+	 */
+	public static byte[] intToByteArray(int value) {
+		byte a = (byte) (value >>> 24);
+		byte b = (byte) (value >>> 16);
+		byte c = (byte) (value >>> 8);
+		byte d = (byte) value;
+
+		if (a > 0)
+			return new byte[] { a, b, c, d };
+		else if (b > 0)
+			return new byte[] { b, c, d };
+		else if (c > 0)
+			return new byte[] { c, d };
+		else
+			return new byte[] { d };
+	}
+
 	public static int indexOfCRLF(int index, int length, byte[] data)
 			throws IllegalArgumentException {
 		if (index < 0)
@@ -37,80 +66,6 @@ public class ArrayUtils {
 					&& (index + i + 1) < data.length
 					&& data[index + i + 1] == Constants.LF)
 				result = index + i;
-		}
-
-		return result;
-	}
-
-	public static byte[] encode(char[] chars) {
-		byte[] result = null;
-
-		if (chars != null)
-			result = encode(CharBuffer.wrap(chars));
-
-		return result;
-	}
-
-	public static byte[] encode(CharSequence chars) {
-		byte[] result = null;
-
-		if (chars != null)
-			result = encode(CharBuffer.wrap(chars));
-
-		return result;
-	}
-
-	public static char[] decode(byte[] bytes) {
-		char[] result = null;
-
-		if (bytes == null) {
-			CharsetDecoder decoder = Constants.getDecoder();
-
-			ByteBuffer src = ByteBuffer.wrap(bytes);
-			CharBuffer dest = CharBuffer
-					.allocate(src.remaining() < MAX_DECODE_BUFFER_SIZE ? src
-							.remaining() : MAX_DECODE_BUFFER_SIZE);
-			StrictDynamicCharArray dynamicArray = new StrictDynamicCharArray();
-
-			// Reset the decoder
-			decoder.reset();
-
-			while (src.hasRemaining()) {
-				/*
-				 * Decode the first buffer.capacity chars, passing 'false' to
-				 * indicate that we aren't sure if we are done with the decode
-				 * operation yet.
-				 */
-				decoder.decode(src, dest, false);
-
-				// Append what we successfully decoded to our tally
-				dest.flip();
-				dynamicArray.append(dest);
-
-				// If there is no more to decode, go through finalization
-				if (!src.hasRemaining()) {
-					dest.clear();
-
-					/*
-					 * Per the CharsetDecoder Javadocs, decoders must be given
-					 * an opportunity to "finalize" their internal state and
-					 * flush out any pending operations once we know we've hit
-					 * the end of the chars to decode.
-					 */
-					decoder.decode(src, dest, true);
-					decoder.flush(dest);
-
-					dest.flip();
-
-					// If any finalized bytes were written, append them.
-					if (dest.hasRemaining()) {
-						dynamicArray.append(dest);
-					}
-				}
-			}
-
-			// We are done
-			result = dynamicArray.getArray();
 		}
 
 		return result;
@@ -212,8 +167,69 @@ public class ArrayUtils {
 		return (neg ? -val : val);
 	}
 
-	private static byte[] encode(CharBuffer in) {
-		byte[] result = null;
+	public static IByteArraySource encode(char[] chars) {
+		return (chars == null ? null : encode(CharBuffer.wrap(chars)));
+	}
+
+	public static IByteArraySource encode(CharSequence chars) {
+		return (chars == null ? null : encode(CharBuffer.wrap(chars)));
+	}
+
+	public static ICharArraySource decode(byte[] bytes) {
+		IDynamicArray<char[], CharBuffer> result = null;
+
+		if (bytes == null) {
+			CharsetDecoder decoder = Constants.getDecoder();
+
+			ByteBuffer src = ByteBuffer.wrap(bytes);
+			CharBuffer dest = CharBuffer
+					.allocate(src.remaining() < MAX_DECODE_BUFFER_SIZE ? src
+							.remaining() : MAX_DECODE_BUFFER_SIZE);
+			result = new DynamicCharArray();
+
+			// Reset the decoder
+			decoder.reset();
+
+			while (src.hasRemaining()) {
+				/*
+				 * Decode the first buffer.capacity chars, passing 'false' to
+				 * indicate that we aren't sure if we are done with the decode
+				 * operation yet.
+				 */
+				decoder.decode(src, dest, false);
+
+				// Append what we successfully decoded to our tally
+				dest.flip();
+				result.append(dest);
+
+				// If there is no more to decode, go through finalization
+				if (!src.hasRemaining()) {
+					dest.clear();
+
+					/*
+					 * Per the CharsetDecoder Javadocs, decoders must be given
+					 * an opportunity to "finalize" their internal state and
+					 * flush out any pending operations once we know we've hit
+					 * the end of the chars to decode.
+					 */
+					decoder.decode(src, dest, true);
+					decoder.flush(dest);
+
+					dest.flip();
+
+					// If any finalized bytes were written, append them.
+					if (dest.hasRemaining()) {
+						result.append(dest);
+					}
+				}
+			}
+		}
+
+		return (DynamicCharArray) result;
+	}
+
+	private static IByteArraySource encode(CharBuffer in) {
+		IDynamicArray<byte[], ByteBuffer> result = null;
 
 		if (in != null) {
 			CharsetEncoder encoder = Constants.getEncoder();
@@ -223,7 +239,7 @@ public class ArrayUtils {
 			ByteBuffer buffer = ByteBuffer
 					.allocate(size < MAX_ENCODE_BUFFER_SIZE ? size
 							: MAX_ENCODE_BUFFER_SIZE);
-			StrictDynamicByteArray dynamicArray = new StrictDynamicByteArray();
+			result = new DynamicByteArray();
 
 			// Reset the encoder
 			encoder.reset();
@@ -238,7 +254,7 @@ public class ArrayUtils {
 
 				// Append what we successfully encoded to our tally
 				buffer.flip();
-				dynamicArray.append(buffer);
+				result.append(buffer);
 
 				// If there is no more to encode, go through finalization
 				if (!in.hasRemaining()) {
@@ -257,15 +273,12 @@ public class ArrayUtils {
 
 					// If any finalized bytes were written, append them.
 					if (buffer.hasRemaining()) {
-						dynamicArray.append(buffer);
+						result.append(buffer);
 					}
 				}
 			}
-
-			// We are done
-			result = dynamicArray.getArray();
 		}
 
-		return result;
+		return (DynamicByteArray) result;
 	}
 }

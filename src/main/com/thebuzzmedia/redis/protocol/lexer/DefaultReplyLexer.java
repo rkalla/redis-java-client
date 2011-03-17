@@ -9,12 +9,12 @@ import com.thebuzzmedia.redis.util.ArrayUtils;
 
 public class DefaultReplyLexer implements IReplyLexer {
 	@Override
-	public State scan(int index, byte[] data, List<IMarker> markerList)
-			throws MalformedReplyException {
+	public State scan(int index, int length, byte[] data,
+			List<IMarker> markerList) throws MalformedReplyException {
 		State state = State.INCOMPLETE;
 
 		// Start scanning from the given index for completed replies to mark
-		for (; index < data.length; index++) {
+		for (; index < length; index++) {
 			byte b = data[index];
 			IMarker mark = null;
 

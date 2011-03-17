@@ -6,8 +6,14 @@ import java.nio.charset.CharsetDecoder;
 
 import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.protocol.lexer.IMarker;
-import com.thebuzzmedia.redis.util.StrictDynamicCharArray;
+import com.thebuzzmedia.redis.util.DynamicCharArray;
 
+/*
+ * TODO: This class should be able to represent a byte[] reply as well... maybe
+ * the default return type is byte[] and there is a getValueAsChar method or something.
+ * 
+ * Need to think about it.
+ */
 public class BulkReply implements IReply<char[]> {
 	public static final byte MIN_BYTE_LENGTH = 3;
 	public static final int MAX_BUFFER_SIZE = Integer.getInteger(
@@ -45,7 +51,8 @@ public class BulkReply implements IReply<char[]> {
 	@Override
 	public String toString() {
 		return BulkReply.class.getName() + "[isNil=" + isNil() + ", size="
-				+ getSize() + ", value=" + new String(getValue()) + "]";
+				+ getSize() + ", value="
+				+ (value == null ? "" : new String(getValue())) + "]";
 	}
 
 	@Override
@@ -91,7 +98,7 @@ public class BulkReply implements IReply<char[]> {
 			CharBuffer dest = CharBuffer
 					.allocate(src.remaining() < MAX_BUFFER_SIZE ? src
 							.remaining() : MAX_BUFFER_SIZE);
-			StrictDynamicCharArray result = new StrictDynamicCharArray();
+			DynamicCharArray result = new DynamicCharArray();
 			CharsetDecoder decoder = Constants.getDecoder();
 
 			// Reset the decoder.

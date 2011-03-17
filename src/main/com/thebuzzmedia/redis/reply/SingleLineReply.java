@@ -6,7 +6,7 @@ import java.nio.charset.CharsetDecoder;
 
 import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.protocol.lexer.IMarker;
-import com.thebuzzmedia.redis.util.StrictDynamicCharArray;
+import com.thebuzzmedia.redis.util.DynamicCharArray;
 
 public class SingleLineReply implements IReply<char[]> {
 	public static final byte MIN_BYTE_LENGTH = 4;
@@ -73,7 +73,7 @@ public class SingleLineReply implements IReply<char[]> {
 		CharBuffer dest = CharBuffer
 				.allocate(src.remaining() < MAX_BUFFER_SIZE ? src.remaining()
 						: MAX_BUFFER_SIZE);
-		StrictDynamicCharArray result = new StrictDynamicCharArray();
+		DynamicCharArray result = new DynamicCharArray();
 
 		CharsetDecoder decoder = Constants.getDecoder();
 		decoder.reset();

@@ -20,7 +20,9 @@ import com.thebuzzmedia.redis.reply.IReply;
 import com.thebuzzmedia.redis.reply.IntegerReply;
 import com.thebuzzmedia.redis.reply.MultiBulkReply;
 import com.thebuzzmedia.redis.reply.SingleLineReply;
-import com.thebuzzmedia.redis.util.StrictDynamicByteArray;
+import com.thebuzzmedia.redis.util.DynamicByteArray;
+import com.thebuzzmedia.redis.util.IByteArraySource;
+import com.thebuzzmedia.redis.util.IDynamicArray;
 
 /*
  * TODO: Per the Redis conversation in the Group, this would need to support
@@ -53,8 +55,9 @@ public class Connection {
 	public static final int SEND_TIMEOUT = Integer.getInteger(
 			"redis.connection.sendTimeout", 5000);
 
+	// TODO: Set back to 60 secs before ship
 	public static final int REPLY_TIMEOUT = Integer.getInteger(
-			"redis.connection.replyTimeout", 60000);
+			"redis.connection.replyTimeout", 10000);
 
 	public static final int RECEIVE_BUFFER_SIZE = Integer.getInteger(
 			"redis.connection.receiveBufferSize", 8192);
@@ -159,6 +162,11 @@ public class Connection {
 		 */
 		receiveBuffer = ByteBuffer.allocateDirect(RECEIVE_BUFFER_SIZE);
 	}
+	
+	// TODO: Add a method that accepts List<ICommand> to match the symantics of
+	// returning a list.
+	
+	// TODO: Add a single execute(ICommand) method that returns a single IReply
 
 	@SuppressWarnings("rawtypes")
 	public List<IReply> execute(ICommand... commands) throws IOException {
@@ -235,7 +243,10 @@ public class Connection {
 
 	protected void sendCommand(ICommand command) throws IOException {
 		long timeWaited = 0;
-		ByteBuffer source = ByteBuffer.wrap(command.getCommand());
+
+		IByteArraySource arraySource = command.getCommandData();
+		ByteBuffer source = ByteBuffer.wrap(arraySource.getArray(), 0,
+				arraySource.getLength());
 
 		// Keep track of this for a more informative exception message
 		int originalByteCount = source.remaining();
@@ -271,7 +282,7 @@ public class Connection {
 		int index = 0;
 		int timeWaited = 0;
 		List<IMarker> markerList = new ArrayList<IMarker>();
-		StrictDynamicByteArray data = new StrictDynamicByteArray();
+		IDynamicArray<byte[], ByteBuffer> data = new DynamicByteArray();
 
 		/*
 		 * Loop, trying to read from the channel, until we either time out, or
@@ -307,7 +318,8 @@ public class Connection {
 			 * to buffer some more, either way, now is the time to lex what we
 			 * have and figure out if we are done or not.
 			 */
-			REPLY_LEXER.scan(index, data.getArray(), markerList);
+			REPLY_LEXER.scan(index, data.getLength(), data.getArray(),
+					markerList);
 
 			/*
 			 * We marked all the valid replies in the byte[] we have read so

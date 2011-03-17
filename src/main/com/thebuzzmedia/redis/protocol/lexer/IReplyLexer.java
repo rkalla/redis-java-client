@@ -9,6 +9,6 @@ public interface IReplyLexer {
 		COMPLETE, INCOMPLETE
 	}
 
-	public State scan(int index, byte[] data, List<IMarker> markerList)
-			throws MalformedReplyException;
+	public State scan(int index, int length, byte[] data,
+			List<IMarker> markerList) throws MalformedReplyException;
 }
