@@ -2,10 +2,9 @@ package com.thebuzzmedia.redis.command.keys;
 
 import java.util.List;
 
-import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.command.AbstractCommand;
 
-public class SORT extends AbstractCommand {
+public class Sort extends AbstractCommand {
 	private static final byte[] COMMAND = "SORT".getBytes();
 	private static final byte[] BY = "BY".getBytes();
 	private static final byte[] LIMIT = "LIMIT".getBytes();
@@ -17,10 +16,20 @@ public class SORT extends AbstractCommand {
 		ASC, DESC;
 	}
 
-	public SORT(CharSequence key, CharSequence byPattern, int limitOffset,
+	public Sort(CharSequence key, CharSequence byPattern, int limitOffset,
 			int limitCount, List<CharSequence> getPatternList,
 			SortDirection direction, boolean alphaSort, CharSequence destination)
 			throws IllegalArgumentException {
+		if (key == null || key.length() == 0)
+			throw new IllegalArgumentException("key cannot be null or empty");
+		if (limitOffset >= 0 && limitCount <= 0)
+			throw new IllegalArgumentException(
+					"limitOffset ["
+							+ limitOffset
+							+ "] is a valid value but limitCount ["
+							+ limitCount
+							+ "] indicates no values will be returned; this is likely a mistake.");
+
 		append(COMMAND);
 		append(key);
 
@@ -31,8 +40,7 @@ public class SORT extends AbstractCommand {
 		}
 
 		// Add LIMIT if valid offset and count are provided
-		if (limitOffset != Constants.UNDEFINED
-				&& limitCount != Constants.UNDEFINED) {
+		if (limitCount > 0) {
 			append(LIMIT);
 			append(Integer.toString(limitOffset));
 			append(Integer.toString(limitCount));

@@ -7,7 +7,10 @@ public class SUnionStore extends AbstractCommand {
 
 	public SUnionStore(CharSequence destination, CharSequence... keys)
 			throws IllegalArgumentException {
-		if (keys == null || keys.length < 0)
+		if (destination == null || destination.length() == 0)
+			throw new IllegalArgumentException(
+					"destination cannot be null or empty");
+		if (keys == null || keys.length == 0)
 			throw new IllegalArgumentException(
 					"keys must contain at least one set key");
 

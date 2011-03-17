@@ -8,6 +8,9 @@ public class ZRevRange extends AbstractCommand {
 
 	public ZRevRange(CharSequence key, int startIndex, int stopIndex,
 			boolean withScores) throws IllegalArgumentException {
+		if (key == null || key.length() == 0)
+			throw new IllegalArgumentException("key cannot be null or empty");
+		
 		append(COMMAND);
 		append(key);
 		append(Integer.toString(startIndex));
