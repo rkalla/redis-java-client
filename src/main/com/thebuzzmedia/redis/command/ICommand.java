@@ -1,7 +1,7 @@
 package com.thebuzzmedia.redis.command;
 
-import com.thebuzzmedia.redis.util.IByteArraySource;
+import com.thebuzzmedia.redis.buffer.IArraySource;
 
 public interface ICommand {
-	public IByteArraySource getCommandData();
+	public IArraySource<byte[]> getByteSource();
 }

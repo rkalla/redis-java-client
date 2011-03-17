@@ -5,10 +5,10 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 import com.thebuzzmedia.redis.Constants;
-import com.thebuzzmedia.redis.util.ArrayUtils;
-import com.thebuzzmedia.redis.util.DynamicByteArray;
-import com.thebuzzmedia.redis.util.IByteArraySource;
-import com.thebuzzmedia.redis.util.IDynamicArray;
+import com.thebuzzmedia.redis.buffer.DynamicByteArray;
+import com.thebuzzmedia.redis.buffer.IArraySource;
+import com.thebuzzmedia.redis.buffer.IDynamicArray;
+import com.thebuzzmedia.redis.util.CodingUtils;
 
 public abstract class AbstractCommand implements ICommand {
 	private IDynamicArray<byte[], ByteBuffer> commandBuffer;
@@ -18,6 +18,7 @@ public abstract class AbstractCommand implements ICommand {
 		pendingArguments = new ArrayDeque<IDynamicArray<byte[], ByteBuffer>>(4);
 	}
 
+	// TODO: Improve this
 	@Override
 	public String toString() {
 		return this.getClass().getName()
@@ -27,7 +28,7 @@ public abstract class AbstractCommand implements ICommand {
 	}
 
 	@Override
-	public synchronized IByteArraySource getCommandData() {
+	public synchronized IArraySource<byte[]> getByteSource() {
 		/*
 		 * Because we need to know how many arguments are included as part of
 		 * this command before formatting it into a giant Multi-Bulk query for
@@ -63,7 +64,7 @@ public abstract class AbstractCommand implements ICommand {
 		if (argument == null || argument.length() == 0)
 			return;
 
-		IByteArraySource source = ArrayUtils.encode(argument);
+		IArraySource<byte[]> source = CodingUtils.encode(argument);
 		append(source.getArray(), 0, source.getLength());
 	}
 
@@ -78,8 +79,9 @@ public abstract class AbstractCommand implements ICommand {
 			throws IllegalArgumentException {
 		if (argument == null || length == 0)
 			return;
-		if (index < 0 || (index + length) > argument.length)
+		if (index < 0 || length < 0 || (index + length) > argument.length)
 			throw new IllegalArgumentException("index [" + index
+					+ "] and length [" + length
 					+ "] must be >= 0 and (index + length) ["
 					+ (index + length) + "] must be <= argument.length ["
 					+ argument.length + "]");
@@ -93,7 +95,7 @@ public abstract class AbstractCommand implements ICommand {
 		array.append(Constants.CRLF_BYTES);
 
 		// Second, append the Bulk-formatted data payload
-		array.append(argument, index, length);
+		array.append(index, length, argument);
 		array.append(Constants.CRLF_BYTES);
 
 		// Add the array to our pending args that will be sent

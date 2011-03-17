@@ -1,9 +1,10 @@
-package com.thebuzzmedia.redis.util;
+package com.thebuzzmedia.redis.buffer;
 
 import java.nio.ByteBuffer;
 
 public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer>,
-		IByteArraySource {
+		IArraySource<byte[]> {
+
 	private int length;
 	private byte[] array;
 
@@ -15,7 +16,7 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer>,
 	@Override
 	public String toString() {
 		return this.getClass().getName() + "[length=" + length + ", array="
-				+ new String(array) + "]";
+				+ new String(array, 0, length) + "]";
 	}
 
 	@Override
@@ -33,19 +34,19 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer>,
 		if (data == null || data.length == 0)
 			return;
 
-		append(data, 0, data.length);
+		append(0, data.length, data);
 	}
 
 	@Override
-	public void append(byte[] data, int index, int length)
+	public void append(int index, int length, byte[] data)
 			throws IllegalArgumentException {
 		if (data == null || length == 0)
 			return;
-		if (index < 0 || (index + length) > data.length)
+		if (index < 0 || length < 0 || (index + length) > data.length)
 			throw new IllegalArgumentException("index [" + index
-					+ "] must be >= 0 and and (index+length) ["
-					+ (index + length) + "] must be <= data.length ["
-					+ data.length + "]");
+					+ "] and length [" + length
+					+ "] must be >= 0 and (index+length) [" + (index + length)
+					+ "] must be <= data.length [" + data.length + "]");
 
 		int insertIndex = this.length;
 
@@ -74,7 +75,7 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer>,
 		if (dynamicArray == null || dynamicArray.getLength() == 0)
 			return;
 
-		append(dynamicArray.getArray(), 0, dynamicArray.getLength());
+		append(0, dynamicArray.getLength(), dynamicArray.getArray());
 	}
 
 	@Override

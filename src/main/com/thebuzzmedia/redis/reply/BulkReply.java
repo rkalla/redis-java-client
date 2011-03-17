@@ -5,8 +5,8 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharsetDecoder;
 
 import com.thebuzzmedia.redis.Constants;
+import com.thebuzzmedia.redis.buffer.DynamicCharArray;
 import com.thebuzzmedia.redis.protocol.lexer.IMarker;
-import com.thebuzzmedia.redis.util.DynamicCharArray;
 
 /*
  * TODO: This class should be able to represent a byte[] reply as well... maybe

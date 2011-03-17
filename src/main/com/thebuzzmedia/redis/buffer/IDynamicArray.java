@@ -1,15 +1,15 @@
-package com.thebuzzmedia.redis.util;
+package com.thebuzzmedia.redis.buffer;
 
 import java.nio.Buffer;
 
-public interface IDynamicArray<AT, BT extends Buffer> {
+public interface IDynamicArray<AT, BT extends Buffer> extends IArraySource<AT> {
 	public int getLength();
-
+	
 	public AT getArray();
 
 	public void append(AT data);
-	
-	public void append(AT data, int index, int length);
+
+	public void append(int index, int length, AT data);
 
 	public void append(BT buffer);
 

@@ -6,10 +6,14 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import com.thebuzzmedia.redis.Constants;
+import com.thebuzzmedia.redis.buffer.DynamicByteArray;
+import com.thebuzzmedia.redis.buffer.IArraySource;
+import com.thebuzzmedia.redis.buffer.IDynamicArray;
 import com.thebuzzmedia.redis.command.ICommand;
 import com.thebuzzmedia.redis.protocol.lexer.DefaultReplyLexer;
 import com.thebuzzmedia.redis.protocol.lexer.IMarker;
@@ -20,9 +24,6 @@ import com.thebuzzmedia.redis.reply.IReply;
 import com.thebuzzmedia.redis.reply.IntegerReply;
 import com.thebuzzmedia.redis.reply.MultiBulkReply;
 import com.thebuzzmedia.redis.reply.SingleLineReply;
-import com.thebuzzmedia.redis.util.DynamicByteArray;
-import com.thebuzzmedia.redis.util.IByteArraySource;
-import com.thebuzzmedia.redis.util.IDynamicArray;
 
 /*
  * TODO: Per the Redis conversation in the Group, this would need to support
@@ -162,14 +163,31 @@ public class Connection {
 		 */
 		receiveBuffer = ByteBuffer.allocateDirect(RECEIVE_BUFFER_SIZE);
 	}
-	
-	// TODO: Add a method that accepts List<ICommand> to match the symantics of
-	// returning a list.
-	
-	// TODO: Add a single execute(ICommand) method that returns a single IReply
+
+	@SuppressWarnings("rawtypes")
+	public IReply execute(ICommand command) throws IOException {
+		IReply reply = null;
+		List<IReply> replyList = execute(new ICommand[] { command });
+
+		if (!replyList.isEmpty())
+			reply = replyList.get(0);
+
+		return reply;
+	}
 
 	@SuppressWarnings("rawtypes")
 	public List<IReply> execute(ICommand... commands) throws IOException {
+		/*
+		 * Arrays.asList uses a special, internal ArrayList impl that does no
+		 * copying of the source [] and instead wraps it immediately with a very
+		 * lightweight/fast List implementation, so this is a very cheap
+		 * operation.
+		 */
+		return execute(Arrays.asList(commands));
+	}
+
+	@SuppressWarnings("rawtypes")
+	public List<IReply> execute(List<ICommand> commandList) throws IOException {
 		if (!channel.isConnected()) {
 			// TODO: Add reconnect logic here.
 
@@ -180,18 +198,18 @@ public class Connection {
 		List<IReply> replyList = EMPTY_REPLY_LIST;
 
 		// Only continue if there are commands to send
-		if (commands != null && commands.length > 0) {
-			replyList = new ArrayList<IReply>(commands.length);
+		if (commandList != null && !commandList.isEmpty()) {
+			replyList = new ArrayList<IReply>(commandList.size());
 
 			// Send all commands (pipeline) to Redis.
-			for (ICommand command : commands)
-				sendCommand(command);
+			for (int i = 0, size = commandList.size(); i < size; i++)
+				sendCommand(commandList.get(i));
 
 			/*
 			 * Wait for all the replies to come back and our lexer to correctly
 			 * mark them all up in the returned byte[].
 			 */
-			List<IMarker> markerList = receiveReply(commands.length);
+			List<IMarker> markerList = receiveReply(commandList.size());
 
 			/*
 			 * Convert all the marks to replies. If we got this far and didn't
@@ -206,7 +224,9 @@ public class Connection {
 			 * Marks have a 1:1 relationship with Replies, so convert every
 			 * IMark into its corresponding IReply.
 			 */
-			for (IMarker mark : markerList) {
+			for (int i = 0, size = markerList.size(); i < size; i++) {
+				IMarker mark = markerList.get(i);
+
 				switch (mark.getReplyType()) {
 				case Constants.REPLY_TYPE_INTEGER:
 					replyList.add(new IntegerReply(mark));
@@ -244,9 +264,9 @@ public class Connection {
 	protected void sendCommand(ICommand command) throws IOException {
 		long timeWaited = 0;
 
-		IByteArraySource arraySource = command.getCommandData();
-		ByteBuffer source = ByteBuffer.wrap(arraySource.getArray(), 0,
-				arraySource.getLength());
+		IArraySource<byte[]> byteSource = command.getByteSource();
+		ByteBuffer source = ByteBuffer.wrap(byteSource.getArray(), 0,
+				byteSource.getLength());
 
 		// Keep track of this for a more informative exception message
 		int originalByteCount = source.remaining();

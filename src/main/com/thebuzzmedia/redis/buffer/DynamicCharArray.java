@@ -1,9 +1,9 @@
-package com.thebuzzmedia.redis.util;
+package com.thebuzzmedia.redis.buffer;
 
 import java.nio.CharBuffer;
 
 public class DynamicCharArray implements IDynamicArray<char[], CharBuffer>,
-		ICharArraySource {
+		IArraySource<char[]> {
 	private int length;
 	private char[] array;
 
@@ -33,19 +33,19 @@ public class DynamicCharArray implements IDynamicArray<char[], CharBuffer>,
 		if (data == null || data.length == 0)
 			return;
 
-		append(data, 0, data.length);
+		append(0, data.length, data);
 	}
 
 	@Override
-	public void append(char[] data, int index, int length)
+	public void append(int index, int length, char[] data)
 			throws IllegalArgumentException {
 		if (data == null || length == 0)
 			return;
-		if (index < 0 || (index + length) > data.length)
+		if (index < 0 || length < 0 || (index + length) > data.length)
 			throw new IllegalArgumentException("index [" + index
-					+ "] must be >= 0 and and (index+length) ["
-					+ (index + length) + "] must be <= data.length ["
-					+ data.length + "]");
+					+ "] and length [" + length
+					+ "] must be >= 0 and (index+length) [" + (index + length)
+					+ "] must be <= data.length [" + data.length + "]");
 
 		int insertIndex = length;
 
@@ -74,7 +74,7 @@ public class DynamicCharArray implements IDynamicArray<char[], CharBuffer>,
 		if (dynamicArray == null || dynamicArray.getLength() == 0)
 			return;
 
-		append(dynamicArray.getArray(), 0, dynamicArray.getLength());
+		append(0, dynamicArray.getLength(), dynamicArray.getArray());
 	}
 
 	@Override
