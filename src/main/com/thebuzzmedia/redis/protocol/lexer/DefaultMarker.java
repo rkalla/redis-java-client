@@ -54,33 +54,27 @@ public class DefaultMarker implements IMarker {
 				+ "]";
 	}
 
-	@Override
 	public byte getReplyType() {
 		return replyType;
 	}
 
-	@Override
 	public int getIndex() {
 		return index;
 	}
 
-	@Override
 	public int getLength() {
 		return length;
 	}
 
-	@Override
 	public byte[] getSource() {
 		return source;
 	}
 
-	@Override
 	public boolean hasChildren() {
 		return (childMarkerList == null || childMarkerList.isEmpty() ? false
 				: true);
 	}
 
-	@Override
 	public synchronized void addChildMarker(IMarker child)
 			throws IllegalArgumentException {
 		if (child == null)
@@ -93,7 +87,6 @@ public class DefaultMarker implements IMarker {
 		childMarkerList.add(child);
 	}
 
-	@Override
 	public List<IMarker> getChildMarkerList() {
 		return childMarkerList;
 	}

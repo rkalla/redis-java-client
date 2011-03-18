@@ -1,19 +1,12 @@
 package com.thebuzzmedia.redis.reply;
 
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.CharsetDecoder;
-
 import com.thebuzzmedia.redis.Constants;
-import com.thebuzzmedia.redis.buffer.DynamicCharArray;
 import com.thebuzzmedia.redis.protocol.lexer.IMarker;
+import com.thebuzzmedia.redis.util.CodingUtils;
 
-public class SingleLineReply implements IReply<char[]> {
-	public static final byte MIN_BYTE_LENGTH = 4;
-	public static final int MAX_BUFFER_SIZE = Integer.getInteger(
-			"redis.reply.singleLineMaxBufferSize", 512);
+public class SingleLineReply extends AbstractReply<char[]> {
+	private static final byte MIN_BYTE_LENGTH = 4;
 
-	private byte type = Constants.UNDEFINED;
 	private char[] value;
 
 	public SingleLineReply(IMarker marker) throws IllegalArgumentException {
@@ -30,7 +23,7 @@ public class SingleLineReply implements IReply<char[]> {
 		this.type = marker.getReplyType();
 
 		try {
-			this.value = parseMarker(marker);
+			parseMarker(marker);
 		} catch (Exception e) {
 			throw new IllegalArgumentException(
 					"Unable to parse the given marker as a valid Single Line reply [marker="
@@ -38,87 +31,17 @@ public class SingleLineReply implements IReply<char[]> {
 		}
 	}
 
-	@Override
-	public String toString() {
-		return SingleLineReply.class.getName() + "[size=" + getSize()
-				+ ", value=" + new String(getValue()) + "]";
-	}
-
-	@Override
-	public byte getType() {
-		return type;
-	}
-
-	@Override
 	public int getSize() {
 		return value.length;
 	}
 
-	@Override
 	public char[] getValue() {
 		return value;
 	}
 
-	protected char[] parseMarker(IMarker marker) {
-		// Wrap the portion of bytes that make up this reply's text
-		ByteBuffer src = ByteBuffer.wrap(marker.getSource(),
-				marker.getIndex() + 1, marker.getLength() - 3);
-
-		/*
-		 * Create an optimally sized destination buffer UP TO our max buffer
-		 * size. Decoding bytes to chars will never result in more chars than
-		 * bytes, so we can at least use the same sized buffer if it's smaller
-		 * than our max buffer size.
-		 */
-		CharBuffer dest = CharBuffer
-				.allocate(src.remaining() < MAX_BUFFER_SIZE ? src.remaining()
-						: MAX_BUFFER_SIZE);
-		DynamicCharArray result = new DynamicCharArray();
-
-		CharsetDecoder decoder = Constants.getDecoder();
-		decoder.reset();
-
-		/*
-		 * Keep reading (in CharBuffer sized chunks) and decoding bytes from our
-		 * source and into our dest as long as there are bytes to be read.
-		 */
-		while (src.hasRemaining()) {
-			/*
-			 * Decode read bytes; the 'false' tells the decoder that we are not
-			 * positively done yet, so if it reaches a char it cannot decode, it
-			 * will hold on to it until it gets more bytes.
-			 */
-			decoder.decode(src, dest, false);
-
-			// Write the decoded chars to our result array.
-			dest.flip();
-			result.append(dest);
-
-			// Prepare for another read
-			dest.clear();
-
-			/*
-			 * If the source buffer has no more bytes remaining to be read, then
-			 * that means we are done.
-			 */
-			if (!src.hasRemaining()) {
-				/*
-				 * Per the CharsetEn/Decoder classes, we must now give the
-				 * decoder an opportunity to finalize and flush its decoded
-				 * data.
-				 */
-				decoder.decode(src, dest, true);
-				decoder.flush(dest);
-
-				// Add any last chars flushed by the decoder to our result
-				if (dest.position() > 0) {
-					dest.flip();
-
-					result.append(dest);
-				}
-			}
-		}
-
-		return result.getArray();
+	@Override
+	protected void parseMarker(IMarker marker) {
+		this.value = CodingUtils.decode(marker.getIndex() + 1,
+				marker.getLength() - 3, marker.getSource());
 	}
 }

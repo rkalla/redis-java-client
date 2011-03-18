@@ -15,12 +15,10 @@ public class DynamicCharArray implements IDynamicArray<char[], CharBuffer> {
 				+ ", array=" + new String(array) + "]";
 	}
 
-	@Override
 	public char[] getArray() {
 		return array;
 	}
 
-	@Override
 	public void append(char[] data) {
 		if (data == null || data.length == 0)
 			return;
@@ -28,7 +26,6 @@ public class DynamicCharArray implements IDynamicArray<char[], CharBuffer> {
 		append(0, data.length, data);
 	}
 
-	@Override
 	public void append(int index, int length, char[] data)
 			throws IllegalArgumentException {
 		if (data == null || length == 0)
@@ -45,7 +42,6 @@ public class DynamicCharArray implements IDynamicArray<char[], CharBuffer> {
 		System.arraycopy(data, index, array, insertIndex, length);
 	}
 
-	@Override
 	public void append(CharBuffer buffer) {
 		if (buffer == null || buffer.remaining() == 0)
 			return;
@@ -57,7 +53,6 @@ public class DynamicCharArray implements IDynamicArray<char[], CharBuffer> {
 		buffer.get(array, insertIndex, byteCount);
 	}
 
-	@Override
 	public void append(IDynamicArray<char[], CharBuffer> dynamicArray) {
 		if (dynamicArray == null)
 			return;
@@ -66,7 +61,6 @@ public class DynamicCharArray implements IDynamicArray<char[], CharBuffer> {
 		append(0, data.length, data);
 	}
 
-	@Override
 	public void ensureCapacity(int capacity) {
 		if (capacity < array.length)
 			return;

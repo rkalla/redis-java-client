@@ -7,7 +7,6 @@ import com.thebuzzmedia.redis.reply.IReply;
 import com.thebuzzmedia.redis.util.ArrayUtils;
 
 public class DefaultReplyLexer implements IReplyLexer {
-	@Override
 	public State scan(int index, int length, byte[] data,
 			List<IMarker> markerList) throws MalformedReplyException {
 		State state = State.INCOMPLETE;

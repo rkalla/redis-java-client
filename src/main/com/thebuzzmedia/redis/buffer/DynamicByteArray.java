@@ -15,12 +15,10 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer> {
 				+ ", array=" + new String(array, 0, array.length) + "]";
 	}
 
-	@Override
 	public byte[] getArray() {
 		return array;
 	}
 
-	@Override
 	public void append(byte[] data) {
 		if (data == null || data.length == 0)
 			return;
@@ -28,7 +26,6 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer> {
 		append(0, data.length, data);
 	}
 
-	@Override
 	public void append(int index, int length, byte[] data)
 			throws IllegalArgumentException {
 		if (data == null || length == 0)
@@ -45,7 +42,6 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer> {
 		System.arraycopy(data, index, array, insertIndex, length);
 	}
 
-	@Override
 	public void append(ByteBuffer buffer) {
 		if (buffer == null || buffer.remaining() == 0)
 			return;
@@ -57,7 +53,6 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer> {
 		buffer.get(array, insertIndex, byteCount);
 	}
 
-	@Override
 	public void append(IDynamicArray<byte[], ByteBuffer> dynamicArray) {
 		if (dynamicArray == null)
 			return;
@@ -66,7 +61,6 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer> {
 		append(0, data.length, data);
 	}
 
-	@Override
 	public void ensureCapacity(int capacity) {
 		if (capacity < array.length)
 			return;

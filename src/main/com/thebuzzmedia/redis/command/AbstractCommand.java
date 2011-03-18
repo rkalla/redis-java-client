@@ -1,8 +1,8 @@
 package com.thebuzzmedia.redis.command;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.buffer.DynamicByteArray;
@@ -10,23 +10,23 @@ import com.thebuzzmedia.redis.buffer.IDynamicArray;
 import com.thebuzzmedia.redis.util.CodingUtils;
 
 public abstract class AbstractCommand implements ICommand {
+	private static final String TO_STRING_NO_COMMAND = "getBytes() has not been called yet to process the pending arguments into a final MultiBulk-formatted byte[]";
+
 	private IDynamicArray<byte[], ByteBuffer> commandBuffer;
-	private Deque<IDynamicArray<byte[], ByteBuffer>> pendingArguments;
+	private List<IDynamicArray<byte[], ByteBuffer>> pendingArguments;
 
 	public AbstractCommand() {
-		pendingArguments = new ArrayDeque<IDynamicArray<byte[], ByteBuffer>>(4);
+		pendingArguments = new ArrayList<IDynamicArray<byte[], ByteBuffer>>(4);
 	}
 
-	// TODO: Improve this
 	@Override
 	public String toString() {
 		return this.getClass().getName()
-				+ "[command="
-				+ (commandBuffer == null ? "[call getCommandData() first to generate the command]"
-						: new String(commandBuffer.getArray())) + "]";
+				+ "["
+				+ (commandBuffer == null ? TO_STRING_NO_COMMAND : "getBytes="
+						+ new String(commandBuffer.getArray())) + "]";
 	}
 
-	@Override
 	public synchronized byte[] getBytes() {
 		/*
 		 * Because we need to know how many arguments are included as part of
@@ -46,20 +46,18 @@ public abstract class AbstractCommand implements ICommand {
 
 			// Append each of the pending arguments
 			for (int i = 0, size = pendingArguments.size(); i < size; i++)
-				commandBuffer.append(pendingArguments.pollFirst());
+				commandBuffer.append(pendingArguments.get(i));
 
-			/*
-			 * The pendingArgs are empty from pollFirst, but make it easier on
-			 * the GC anyway.
-			 */
+			// Make it easy on the GC to collect all those args
+			pendingArguments.clear();
 			pendingArguments = null;
 		}
 
 		return commandBuffer.getArray();
 	}
 
-	protected void append(CharSequence argument)
-			throws IllegalArgumentException {
+	protected void append(CharSequence argument) throws IllegalStateException,
+			IllegalArgumentException {
 		if (argument == null || argument.length() == 0)
 			return;
 
@@ -67,7 +65,8 @@ public abstract class AbstractCommand implements ICommand {
 		append(0, encodedArgument.length, encodedArgument);
 	}
 
-	protected void append(byte[] argument) throws IllegalArgumentException {
+	protected void append(byte[] argument) throws IllegalStateException,
+			IllegalArgumentException {
 		if (argument == null || argument.length == 0)
 			return;
 
@@ -75,7 +74,10 @@ public abstract class AbstractCommand implements ICommand {
 	}
 
 	protected void append(int index, int length, byte[] argument)
-			throws IllegalArgumentException {
+			throws IllegalStateException, IllegalArgumentException {
+		if (commandBuffer != null)
+			throw new IllegalStateException(
+					"getBytes() was already called and all pending arguments processed into a final MultiBulk-formatted byte[]; nothing else can be appended after this operation has been completed.");
 		if (argument == null || length == 0)
 			return;
 		if (index < 0 || length < 0 || (index + length) > argument.length)
