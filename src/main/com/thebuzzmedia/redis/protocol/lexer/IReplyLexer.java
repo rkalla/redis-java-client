@@ -2,7 +2,6 @@ package com.thebuzzmedia.redis.protocol.lexer;
 
 import java.util.List;
 
-import com.thebuzzmedia.redis.MalformedReplyException;
 
 public interface IReplyLexer {
 	public static enum State {

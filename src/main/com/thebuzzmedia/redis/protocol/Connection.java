@@ -12,7 +12,6 @@ import java.util.List;
 
 import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.buffer.DynamicByteArray;
-import com.thebuzzmedia.redis.buffer.IArraySource;
 import com.thebuzzmedia.redis.buffer.IDynamicArray;
 import com.thebuzzmedia.redis.command.ICommand;
 import com.thebuzzmedia.redis.protocol.lexer.DefaultReplyLexer;
@@ -264,9 +263,8 @@ public class Connection {
 	protected void sendCommand(ICommand command) throws IOException {
 		long timeWaited = 0;
 
-		IArraySource<byte[]> byteSource = command.getByteSource();
-		ByteBuffer source = ByteBuffer.wrap(byteSource.getArray(), 0,
-				byteSource.getLength());
+		byte[] bytes = command.getBytes();
+		ByteBuffer source = ByteBuffer.wrap(bytes);
 
 		// Keep track of this for a more informative exception message
 		int originalByteCount = source.remaining();
@@ -338,8 +336,8 @@ public class Connection {
 			 * to buffer some more, either way, now is the time to lex what we
 			 * have and figure out if we are done or not.
 			 */
-			REPLY_LEXER.scan(index, data.getLength(), data.getArray(),
-					markerList);
+			byte[] bytes = data.getArray();
+			REPLY_LEXER.scan(index, bytes.length, bytes, markerList);
 
 			/*
 			 * We marked all the valid replies in the byte[] we have read so

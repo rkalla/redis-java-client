@@ -2,26 +2,17 @@ package com.thebuzzmedia.redis.buffer;
 
 import java.nio.ByteBuffer;
 
-public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer>,
-		IArraySource<byte[]> {
-
-	private int length;
+public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer> {
 	private byte[] array;
 
 	public DynamicByteArray() {
-		length = 0;
 		array = new byte[16];
 	}
 
 	@Override
 	public String toString() {
-		return this.getClass().getName() + "[length=" + length + ", array="
-				+ new String(array, 0, length) + "]";
-	}
-
-	@Override
-	public int getLength() {
-		return length;
+		return this.getClass().getName() + "[length=" + array.length
+				+ ", array=" + new String(array, 0, array.length) + "]";
 	}
 
 	@Override
@@ -48,12 +39,10 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer>,
 					+ "] must be >= 0 and (index+length) [" + (index + length)
 					+ "] must be <= data.length [" + data.length + "]");
 
-		int insertIndex = this.length;
+		int insertIndex = array.length;
 
-		ensureCapacity(this.length + length);
+		ensureCapacity(array.length + length);
 		System.arraycopy(data, index, array, insertIndex, length);
-
-		this.length += length;
 	}
 
 	@Override
@@ -62,20 +51,19 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer>,
 			return;
 
 		int byteCount = buffer.remaining();
-		int insertIndex = length;
+		int insertIndex = array.length;
 
-		ensureCapacity(length + byteCount);
+		ensureCapacity(array.length + byteCount);
 		buffer.get(array, insertIndex, byteCount);
-
-		length += byteCount;
 	}
 
 	@Override
 	public void append(IDynamicArray<byte[], ByteBuffer> dynamicArray) {
-		if (dynamicArray == null || dynamicArray.getLength() == 0)
+		if (dynamicArray == null)
 			return;
 
-		append(0, dynamicArray.getLength(), dynamicArray.getArray());
+		byte[] data = dynamicArray.getArray();
+		append(0, data.length, data);
 	}
 
 	@Override
@@ -83,13 +71,7 @@ public class DynamicByteArray implements IDynamicArray<byte[], ByteBuffer>,
 		if (capacity < array.length)
 			return;
 
-		// Growth logic copied from java.util.ArrayList
-		int newCapacity = (array.length * 3) / 2 + 1;
-
-		if (newCapacity < capacity)
-			newCapacity = capacity;
-
-		byte[] newArray = new byte[newCapacity];
+		byte[] newArray = new byte[capacity];
 		System.arraycopy(array, 0, newArray, 0, array.length);
 		array = newArray;
 	}

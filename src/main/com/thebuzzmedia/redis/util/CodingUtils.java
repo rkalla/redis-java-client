@@ -8,7 +8,6 @@ import java.nio.charset.CharsetEncoder;
 import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.buffer.DynamicByteArray;
 import com.thebuzzmedia.redis.buffer.DynamicCharArray;
-import com.thebuzzmedia.redis.buffer.IArraySource;
 import com.thebuzzmedia.redis.buffer.IDynamicArray;
 
 public class CodingUtils {
@@ -17,21 +16,20 @@ public class CodingUtils {
 	public static final int MAX_DECODE_BUFFER_SIZE = Integer.getInteger(
 			"redis.util.maxDecodeBufferSize", 2048);
 
-	public static IArraySource<byte[]> encode(char[] chars) {
+	public static byte[] encode(char[] chars) {
 		return (chars == null ? null : encode(CharBuffer.wrap(chars)));
 	}
 
-	public static IArraySource<byte[]> encode(int index, int length,
-			char[] chars) {
+	public static byte[] encode(int index, int length, char[] chars) {
 		return (chars == null ? null : encode(CharBuffer.wrap(chars, index,
 				length)));
 	}
 
-	public static IArraySource<byte[]> encode(CharSequence chars) {
+	public static byte[] encode(CharSequence chars) {
 		return (chars == null ? null : encode(CharBuffer.wrap(chars)));
 	}
 
-	public static IArraySource<byte[]> encode(CharBuffer in) {
+	public static byte[] encode(CharBuffer in) {
 		IDynamicArray<byte[], ByteBuffer> result = null;
 
 		if (in != null) {
@@ -89,20 +87,19 @@ public class CodingUtils {
 			}
 		}
 
-		return result;
+		return result.getArray();
 	}
 
-	public static IArraySource<char[]> decode(byte[] bytes) {
+	public static char[] decode(byte[] bytes) {
 		return (bytes == null ? null : decode(0, bytes.length, bytes));
 	}
 
-	public static IArraySource<char[]> decode(int index, int length,
-			byte[] bytes) {
+	public static char[] decode(int index, int length, byte[] bytes) {
 		return (bytes == null ? null : decode(ByteBuffer.wrap(bytes, index,
 				length)));
 	}
 
-	public static IArraySource<char[]> decode(ByteBuffer in) {
+	public static char[] decode(ByteBuffer in) {
 		IDynamicArray<char[], CharBuffer> result = null;
 
 		if (in != null) {
@@ -156,6 +153,6 @@ public class CodingUtils {
 			}
 		}
 
-		return result;
+		return result.getArray();
 	}
 }

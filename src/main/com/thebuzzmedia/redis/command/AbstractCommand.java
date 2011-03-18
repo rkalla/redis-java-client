@@ -6,7 +6,6 @@ import java.util.Deque;
 
 import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.buffer.DynamicByteArray;
-import com.thebuzzmedia.redis.buffer.IArraySource;
 import com.thebuzzmedia.redis.buffer.IDynamicArray;
 import com.thebuzzmedia.redis.util.CodingUtils;
 
@@ -28,7 +27,7 @@ public abstract class AbstractCommand implements ICommand {
 	}
 
 	@Override
-	public synchronized IArraySource<byte[]> getByteSource() {
+	public synchronized byte[] getBytes() {
 		/*
 		 * Because we need to know how many arguments are included as part of
 		 * this command before formatting it into a giant Multi-Bulk query for
@@ -56,7 +55,7 @@ public abstract class AbstractCommand implements ICommand {
 			pendingArguments = null;
 		}
 
-		return (DynamicByteArray) commandBuffer;
+		return commandBuffer.getArray();
 	}
 
 	protected void append(CharSequence argument)
@@ -64,18 +63,18 @@ public abstract class AbstractCommand implements ICommand {
 		if (argument == null || argument.length() == 0)
 			return;
 
-		IArraySource<byte[]> source = CodingUtils.encode(argument);
-		append(source.getArray(), 0, source.getLength());
+		byte[] encodedArgument = CodingUtils.encode(argument);
+		append(0, encodedArgument.length, encodedArgument);
 	}
 
 	protected void append(byte[] argument) throws IllegalArgumentException {
 		if (argument == null || argument.length == 0)
 			return;
 
-		append(argument, 0, argument.length);
+		append(0, argument.length, argument);
 	}
 
-	protected void append(byte[] argument, int index, int length)
+	protected void append(int index, int length, byte[] argument)
 			throws IllegalArgumentException {
 		if (argument == null || length == 0)
 			return;

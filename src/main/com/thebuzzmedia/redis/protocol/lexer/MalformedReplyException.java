@@ -1,4 +1,4 @@
-package com.thebuzzmedia.redis;
+package com.thebuzzmedia.redis.protocol.lexer;
 
 import java.io.IOException;
 

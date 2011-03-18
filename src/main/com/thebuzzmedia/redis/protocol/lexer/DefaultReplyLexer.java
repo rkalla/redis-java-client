@@ -3,7 +3,6 @@ package com.thebuzzmedia.redis.protocol.lexer;
 import java.util.List;
 
 import com.thebuzzmedia.redis.Constants;
-import com.thebuzzmedia.redis.MalformedReplyException;
 import com.thebuzzmedia.redis.reply.IReply;
 import com.thebuzzmedia.redis.util.ArrayUtils;
 
