@@ -2,6 +2,9 @@ package com.thebuzzmedia.redis.protocol.lexer;
 
 import java.util.List;
 
+/*
+ * TODO: Rename, maybe IMark, and extend IToken from common-lib
+ */
 public interface IMarker {
 	public byte getReplyType();
 

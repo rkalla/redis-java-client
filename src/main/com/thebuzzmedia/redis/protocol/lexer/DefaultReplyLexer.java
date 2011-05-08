@@ -16,6 +16,12 @@ public class DefaultReplyLexer implements IReplyLexer {
 			byte b = data[index];
 			IMarker mark = null;
 
+			/*
+			 * On the initial execution of loop we are always able to treat 'b'
+			 * as a reply-prefix marker because the lexer is only invoked on
+			 * full-token boundaries; always starting +1 position beyond the end
+			 * of the last token returned in the markerList.
+			 */
 			switch (b) {
 			/*
 			 * Integer, Single Line and Error reply types are all single-line,
@@ -29,11 +35,20 @@ public class DefaultReplyLexer implements IReplyLexer {
 				mark = markSimpleReply(b, index, data);
 				break;
 
+			/*
+			 * Bulk replies are 2-lined; 1 line with the byte-length of the
+			 * reply and the 2nd line of the actual bytes.
+			 */
 			case Constants.REPLY_TYPE_BULK:
 				state = State.INCOMPLETE;
 				mark = markBulkReply(index, data);
 				break;
 
+			/*
+			 * Multi-bulk replies are any number of lines; the 1st line is the
+			 * count of "Bulk replies" to follow, parsing all remaining data is
+			 * just doing markBulkReply over and over.
+			 */
 			case Constants.REPLY_TYPE_MULTI_BULK:
 				state = State.INCOMPLETE;
 				mark = markMultiBulkReply(index, data);
@@ -247,6 +262,25 @@ public class DefaultReplyLexer implements IReplyLexer {
 						 * valid mark for it yet.
 						 */
 						mark = null;
+
+						/*
+						 * TODO: need to re-consider the performance
+						 * implications of this as marking a HUGE multi replies,
+						 * this would be a performance killer, constantly
+						 * remarking over and over.
+						 * 
+						 * TODO: This is probably totally unnecessary as
+						 * partially marked should be fine (as long as we can
+						 * remember the state and what we were marking) --
+						 * because DefaultMarker's length grows based on the
+						 * children it contains, so technically when we return
+						 * from here and call back in later, mark.getLength + 1
+						 * should point us right at the start of the next Bulk
+						 * reply that is part of this multi-bulk.
+						 * 
+						 * We need a way to return the original mulit-bulk count
+						 * though so we can pickup where we left off.
+						 */
 					} else {
 						// Add the child mark to the parent
 						mark.addChildMarker(bulkMark);

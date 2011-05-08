@@ -4,6 +4,20 @@ import com.thebuzzmedia.redis.Constants;
 import com.thebuzzmedia.redis.protocol.lexer.IMarker;
 import com.thebuzzmedia.redis.util.CodingUtils;
 
+/*
+ * TODO: The design of this reply type is wrong, errors can occur at any time
+ * and be returned as a result of ANY command. This means a command that returns
+ * a char[], Integer or byte[] can all result in an ErrorReply.
+ * 
+ * Representing an error reply should become a base property of IReply and it be
+ * capable of correctly reporting that to the caller.
+ * 
+ * This makes the requirement of replies being a universal format (byte[]) even
+ * more important since they can become any type at any moment.
+ * 
+ * Getting a translated value out of a reply should be handled in a more universal
+ * manner.
+ */
 public class ErrorReply extends AbstractReply<char[]> {
 	private static final byte MIN_BYTE_LENGTH = 4;
 
